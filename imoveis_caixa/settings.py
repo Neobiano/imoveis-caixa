@@ -44,7 +44,7 @@ ROOT_URLCONF = 'imoveis_caixa.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -88,15 +88,13 @@ USE_I18N = True
 USE_TZ = True
 
 # Configurações de arquivos estáticos
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Extra places for collectstatic to find static files.
-STATICFILES_DIRS = (
+STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
-)
+]
 
-# Simplified static file serving.
+# Configuração do WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Configurações de segurança para produção
@@ -110,6 +108,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    ALLOWED_HOSTS = ['imoveis-caixa.onrender.com']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
