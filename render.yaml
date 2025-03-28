@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: imoveis-caixa
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn imoveis_caixa.wsgi:application
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: False
+      - key: HERE_API_KEY_1
+        sync: false
+      - key: HERE_API_KEY_2
+        sync: false
+      - key: HERE_API_KEY_3
+        sync: false
+    healthCheckPath: /
+    autoDeploy: true 

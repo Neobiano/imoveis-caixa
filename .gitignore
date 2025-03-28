@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual Environment
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+
+# Logs
+*.log
+importacao.log
+validacao_geografica.log
+correcao_urls.log
+
+# Data files
+*.csv
+*.geojson
+backup_propriedades.json
+
+# Large files (> 1MB)
+*.{csv,geojson,json,log,db,shp,shx,dbf,prj,cpg,qix,pdf,zip,rar,7z,tar,gz}
+**/*.{csv,geojson,json,log,db,shp,shx,dbf,prj,cpg,qix,pdf,zip,rar,7z,tar,gz}
+
+# Ignore all files in data directory
+importador/data/*
+!importador/data/.gitkeep
+
+# Shapefiles
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.qix 
