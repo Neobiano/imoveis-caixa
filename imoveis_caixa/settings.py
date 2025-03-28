@@ -15,7 +15,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-your-secret-ke
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']  # Em produção, você deve especificar os domínios permitidos
+ALLOWED_HOSTS = ['imoveis-caixa.onrender.com', 'localhost', '127.0.0.1']
 
 # Application definition
 INSTALLED_APPS = [
@@ -44,7 +44,7 @@ ROOT_URLCONF = 'imoveis_caixa.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],  # Removendo o diretório templates pois já está configurado em APP_DIRS
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
