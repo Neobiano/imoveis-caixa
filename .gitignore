@@ -50,6 +50,7 @@ ENV/
 
 # Logs
 logs/
+logs/gemini_requests/
 *.log
 importacao.log
 validacao_geografica.log
