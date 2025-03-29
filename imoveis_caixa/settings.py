@@ -9,13 +9,22 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Identificar o ambiente
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
+IS_DEVELOPMENT = ENVIRONMENT == 'development'
+IS_PRODUCTION = ENVIRONMENT == 'production'
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-your-secret-key-here')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['imoveis-caixa.onrender.com', 'localhost', '127.0.0.1']
+# Configuração de hosts permitidos baseada no ambiente
+if IS_PRODUCTION:
+    ALLOWED_HOSTS = ['imoveis-caixa.onrender.com']
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Application definition
 INSTALLED_APPS = [
@@ -39,12 +48,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'imoveis_caixa.urls'
-
+# Configuração de templates
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # Removendo o diretório templates pois já está configurado em APP_DIRS
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -57,11 +65,20 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'imoveis_caixa.wsgi.application'
+# Configuração de URLs
+ROOT_URLCONF = 'imoveis_caixa.urls'
+
+# Configuração do banco de dados baseada no ambiente
+if IS_DEVELOPMENT:
+    # URL padrão para desenvolvimento local
+    DEFAULT_DATABASE_URL = 'postgres://gerente:1234@localhost:5432/imoveis'
+else:
+    # Em produção, não definimos URL padrão - deve vir das variáveis de ambiente
+    DEFAULT_DATABASE_URL = None
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgres://gerente:1234@localhost:5432/imoveis',
+        default=DEFAULT_DATABASE_URL,
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -90,15 +107,19 @@ USE_TZ = True
 # Configurações de arquivos estáticos
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
 
-# Configuração do WhiteNoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Configuração do WhiteNoise apenas em produção
+if IS_PRODUCTION:
+    STATICFILES_DIRS = [
+        os.path.join(BASE_DIR, 'static'),
+    ]
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Em desenvolvimento, não precisamos do WhiteNoise
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
-# Configurações de segurança para produção
-if not DEBUG:
+# Configurações de segurança apenas em produção
+if IS_PRODUCTION:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -108,7 +129,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    ALLOWED_HOSTS = ['imoveis-caixa.onrender.com']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

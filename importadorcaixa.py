@@ -12,6 +12,7 @@ from geopy.geocoders import Nominatim, Here
 from bs4 import BeautifulSoup
 import time
 from dotenv import load_dotenv
+from validacao_geografica import ValidadorGeografico
 
 # Configurar o Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'imoveis_caixa.settings')
@@ -20,15 +21,38 @@ django.setup()
 from propriedades.models import Propriedade, ImagemPropriedade
 
 # Configuração de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('importacao.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
+log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'importacao.log')
+
+# Criar um handler personalizado para garantir flush imediato
+class ImmediateFlushHandler(logging.FileHandler):
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+        os.fsync(self.stream.fileno())  # Força a escrita no disco
+
+# Configurar o logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Remover handlers existentes
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+# Adicionar handlers
+file_handler = ImmediateFlushHandler(log_file, encoding='utf-8', mode='a')
+console_handler = logging.StreamHandler()
+
+# Configurar formato
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Adicionar handlers ao logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Log inicial para testar
+logger.info("Iniciando configuração de logging")
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -47,6 +71,7 @@ class ImportadorCaixa:
             os.environ.get('HERE_API_KEY_3')
         ]
         self.current_api_key_index = 0
+        self.validador_geografico = ValidadorGeografico()
         logger.info("Iniciando nova sessão de importação")
 
     def _get_next_api_key(self):
@@ -226,8 +251,8 @@ class ImportadorCaixa:
         tipo = partes[0].strip()
         return tipo if tipo else None
 
-    def _obter_coordenadas(self, endereco):
-        """Obtém as coordenadas de um endereço usando o Here Maps API com rotação de APIs."""
+    def _obter_coordenadas(self, endereco, cidade, estado):
+        """Obtém as coordenadas de um endereço usando o Here Maps API com rotação de APIs e validação geográfica."""
         tentativas = 0
         apis_tentadas = set()
 
@@ -245,8 +270,8 @@ class ImportadorCaixa:
                 
                 response = requests.get(url, params=params)
                 
-                if response.status_code == 429:  # Too Many Requests
-                    logger.warning(f"API Key {api_key[:8]}... atingiu o limite. Tentando próxima API...")
+                if response.status_code in [401, 429]:  # Unauthorized ou Too Many Requests
+                    logger.warning(f"API Key {api_key[:8]}... não funcionou (status {response.status_code}). Tentando próxima API...")
                     apis_tentadas.add(api_key)
                     self.current_api_key_index = (self.current_api_key_index + 1) % len(self.api_keys)
                     tentativas += 1
@@ -257,12 +282,24 @@ class ImportadorCaixa:
                 
                 if data['items']:
                     position = data['items'][0]['position']
-                    return position['lat'], position['lng']
+                    lat, lon = position['lat'], position['lng']
+                    
+                    # Validar coordenadas
+                    lat_validada, lon_validada = self.validador_geografico.validar_coordenadas(
+                        lat=lat,
+                        lon=lon,
+                        cidade=cidade,
+                        uf=estado
+                    )
+                    
+                    if lat_validada is not None and lon_validada is not None:
+                        return lat_validada, lon_validada
+                    
                 return None, None
 
             except requests.exceptions.RequestException as e:
-                if "429" in str(e):  # Too Many Requests em caso de exceção
-                    logger.warning(f"API Key {api_key[:8]}... atingiu o limite. Tentando próxima API...")
+                if any(status in str(e) for status in ["401", "429"]):
+                    logger.warning(f"API Key {api_key[:8]}... não funcionou. Tentando próxima API...")
                     apis_tentadas.add(api_key)
                     self.current_api_key_index = (self.current_api_key_index + 1) % len(self.api_keys)
                     tentativas += 1
@@ -271,8 +308,10 @@ class ImportadorCaixa:
                 return None, None
 
         if tentativas == len(self.api_keys):
-            logger.error("Todas as APIs do Here Maps atingiram o limite de requisições")
-        return None, None
+            logger.error("Todas as APIs do Here Maps falharam")
+            
+        # Se não conseguiu coordenadas válidas da API, gerar dentro do município
+        return self.validador_geografico.validar_coordenadas(None, None, cidade, estado)
 
     def _obter_url_imagem(self, codigo):
         """Obtém a URL da imagem do imóvel usando o padrão F{id_imovel}21 com padding de zeros"""
@@ -291,13 +330,17 @@ class ImportadorCaixa:
         """Processa os dados de um imóvel do CSV"""
         try:
             logger.info(f"\nProcessando novo imóvel: {dados.get('N° do imóvel', 'sem código')}")
-            # Imprimir os dados para debug
-            logger.debug(f"Dados do imóvel: {dados}")
             
             # Extrair o código do imóvel (campo obrigatório)
             codigo = dados.get('N° do imóvel', '').strip()
             if not codigo:
                 logger.warning("Imóvel sem código, ignorando...")
+                return None
+
+            # Verificar se o imóvel já existe e tem coordenadas
+            imovel_existente = Propriedade.objects.filter(codigo=codigo).first()
+            if imovel_existente and imovel_existente.latitude is not None and imovel_existente.longitude is not None:
+                logger.info(f"Imóvel {codigo} já possui coordenadas cadastradas. Pulando validação.")
                 return None
 
             # Extrair área e quartos da descrição
@@ -323,8 +366,19 @@ class ImportadorCaixa:
             logger.info(f"Desconto: {desconto}%")
 
             endereco = dados.get('Endereço', '').strip()
+            bairro = dados.get('Bairro', '').strip()
             cidade = dados.get('Cidade', '').strip()
             estado = dados.get('UF', '').strip()
+            link = dados.get('Link de acesso', '').strip()
+
+            # Gerar URL da matrícula
+            matricula_url = None
+            if codigo:
+                # Formatar o código com zeros à esquerda se necessário
+                codigo_formatado = codigo.zfill(13)
+                if estado:
+                    matricula_url = f"https://venda-imoveis.caixa.gov.br/editais/matricula/{estado}/{codigo_formatado}.pdf"
+                    logger.info(f"URL da matrícula gerada: {matricula_url}")
 
             # Montar o objeto do imóvel
             imovel = {
@@ -332,7 +386,7 @@ class ImportadorCaixa:
                 'tipo': 'Residencial',  # Valor padrão
                 'tipo_imovel': tipo_imovel,
                 'endereco': endereco,
-                'bairro': dados.get('Bairro', '').strip(),
+                'bairro': bairro,
                 'cidade': cidade,
                 'estado': estado,
                 'valor': valor,
@@ -345,13 +399,14 @@ class ImportadorCaixa:
                 'area_privativa': area_privativa,
                 'area_terreno': area_terreno,
                 'quartos': quartos or 0,
-                'link': dados.get('Link de acesso', '').strip()
+                'link': link,
+                'matricula_url': matricula_url  # Adicionar URL da matrícula
             }
 
             print(f"Processando imóvel: {imovel['codigo']}")
-            # Agora vamos coletar coordenadas apenas para imóveis novos
+            # Coletar coordenadas apenas para imóveis novos ou sem coordenadas
             endereco_completo = f"{endereco}, {cidade}, {estado}, Brasil"
-            latitude, longitude = self._obter_coordenadas(endereco_completo)
+            latitude, longitude = self._obter_coordenadas(endereco_completo, cidade, estado)
             imovel['latitude'] = latitude
             imovel['longitude'] = longitude
             if latitude and longitude:
@@ -406,6 +461,7 @@ class ImportadorCaixa:
                 'latitude': Decimal(str(dados_imovel.get('latitude', '0'))) if dados_imovel.get('latitude') else None,
                 'longitude': Decimal(str(dados_imovel.get('longitude', '0'))) if dados_imovel.get('longitude') else None,
                 'imagem_url': dados_imovel.get('imagem_url'),
+                'matricula_url': dados_imovel.get('matricula_url'),
             }
 
             logger.debug(f"Tentando salvar imóvel com dados: {dados_para_salvar}")
@@ -520,7 +576,7 @@ class ImportadorCaixa:
                 imoveis_existentes = Propriedade.objects.filter(estado=estado)
                 logger.info(f"Total de imóveis existentes no banco: {imoveis_existentes.count()}")
                 
-                # 1.2 Remover imóveis que não estão mais no CSV
+                # Remover imóveis que não estão mais no CSV
                 for imovel in imoveis_existentes:
                     if imovel.codigo not in codigos_novos:
                         logger.info(f"Removendo imóvel não mais disponível: {imovel.codigo}")
@@ -542,22 +598,8 @@ class ImportadorCaixa:
                                 imovel_existente.imagem_url = url_imagem
                                 imovel_existente.save()
                                 logger.info(f"URL da imagem atualizada para o imóvel {codigo}")
-
-                        # Atualizar coordenadas se estiverem faltando
-                        if imovel_existente.latitude is None or imovel_existente.longitude is None:
-                            logger.info(f"Atualizando coordenadas do imóvel: {codigo}")
-                            endereco_completo = f"{item.get('Endereço', '')}, {item.get('Cidade', '')}, {item.get('UF', '')}, Brasil"
-                            latitude, longitude = self._obter_coordenadas(endereco_completo)
-                            if latitude and longitude:
-                                imovel_existente.latitude = latitude
-                                imovel_existente.longitude = longitude
-                                imovel_existente.save()
-                                logger.info(f"Coordenadas atualizadas: lat={latitude}, lng={longitude}")
-                                total_atualizados += 1
-                            else:
-                                logger.warning(f"Não foi possível obter coordenadas para o imóvel {codigo}")
                     else:
-                        # 1.3 Importar novo imóvel
+                        # Importar novo imóvel
                         logger.info(f"Importando novo imóvel: {codigo}")
                         imovel_processado = self._processar_imovel(item)
                         if imovel_processado and self._salvar_imovel(imovel_processado):

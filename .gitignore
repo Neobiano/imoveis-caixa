@@ -40,6 +40,11 @@ ENV/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
+
+# Mas não ignorar o arquivo de exemplo
+!.env.example
 
 # Logs
 *.log

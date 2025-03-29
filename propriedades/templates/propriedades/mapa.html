@@ -263,7 +263,14 @@
                             </div>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary w-100">Aplicar Filtros</button>
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-primary w-100 mb-2" onclick="aplicarFiltros()">
+                                Aplicar Filtros
+                            </button>
+                            <button type="button" class="btn btn-secondary w-100" onclick="limparFiltros()">
+                                Limpar Filtros
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -475,10 +482,8 @@
                 });
         }
 
-        // Aplicar filtros com múltipla seleção
-        document.getElementById('filterForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
+        // Função para aplicar filtros
+        function aplicarFiltros() {
             const filters = {
                 estado: Array.from(document.querySelectorAll('input[name="estado"]:checked')).map(cb => cb.value),
                 cidade: Array.from(document.querySelectorAll('input[name="cidade"]:checked')).map(cb => cb.value),
@@ -490,7 +495,60 @@
             };
             
             loadProperties(filters);
+        }
+
+        // Evento de submit do formulário
+        document.getElementById('filterForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            aplicarFiltros();
         });
+
+        // Função para limpar todos os filtros
+        function limparFiltros() {
+            // Limpar checkboxes de estados
+            document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Limpar checkboxes de cidades
+            document.querySelectorAll('input[name="cidade"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Limpar checkboxes de bairros
+            document.querySelectorAll('input[name="bairro"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Limpar checkboxes de tipos de imóvel
+            document.querySelectorAll('input[name="tipo_imovel"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Limpar valor máximo
+            document.getElementById('valor_max').value = '';
+            
+            // Limpar desconto mínimo
+            document.getElementById('desconto_min').value = 0;
+            document.getElementById('desconto_valor').textContent = '0';
+            
+            // Limpar checkboxes de quartos
+            document.querySelectorAll('input[name="quartos"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Limpar campos de busca
+            document.getElementById('estado-search').value = '';
+            document.getElementById('cidade-search').value = '';
+            document.getElementById('bairro-search').value = '';
+            document.getElementById('tipo-search').value = '';
+            
+            // Centralizar o mapa no Brasil
+            map.setView([-14.235004, -51.92528], 4);
+            
+            // Aplicar os filtros limpos
+            aplicarFiltros();
+        }
 
         // Carregar imóveis iniciais
         loadProperties();
