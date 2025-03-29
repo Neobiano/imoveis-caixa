@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Imóveis Caixa - Mapa</title>
     
+    {% csrf_token %}
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     
@@ -31,8 +33,18 @@
         }
         .property-popup img {
             width: 100%;
-            height: 150px;
+            height: 200px;
             object-fit: cover;
+        }
+        .property-popup h1,
+        .property-popup h2,
+        .property-popup h3,
+        .property-popup h4,
+        .property-popup h5,
+        .property-popup h6 {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
         }
         .custom-div-icon {
             background: #fff;
@@ -128,6 +140,11 @@
         .btn-obter-valor:hover {
             background: #0056b3;
         }
+        /* Estilo para o botão Ver Detalhes */
+        .btn-primary {
+            color: #000000 !important;
+            font-weight: 500;
+        }
         /* Estilo para os checkboxes */
         .checkbox-group {
             max-height: 200px;
@@ -169,6 +186,73 @@
         .checkbox-group::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        /* Estilos para o conteúdo markdown */
+        .analysis-content {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .analysis-content h1,
+        .analysis-content h2,
+        .analysis-content h3,
+        .analysis-content h4,
+        .analysis-content h5,
+        .analysis-content h6 {
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        .analysis-content h1 { font-size: 1.1rem; }
+        .analysis-content h2 { font-size: 0.9rem; }
+        .analysis-content h3 { font-size: 0.85rem; }
+        .analysis-content h4,
+        .analysis-content h5,
+        .analysis-content h6 { font-size: 0.8rem; }
+        .analysis-content p {
+            margin-bottom: 1rem;
+        }
+        .analysis-content ul,
+        .analysis-content ol {
+            margin-bottom: 1rem;
+            padding-left: 2rem;
+        }
+        .analysis-content li {
+            margin-bottom: 0.5rem;
+        }
+        .analysis-content strong {
+            font-weight: 600;
+        }
+        .analysis-content em {
+            font-style: italic;
+        }
+        .analysis-content blockquote {
+            margin: 1rem 0;
+            padding: 0.5rem 1rem;
+            border-left: 4px solid #dee2e6;
+            color: #6c757d;
+        }
+        .analysis-content code {
+            padding: 0.2rem 0.4rem;
+            font-size: 85%;
+            color: #e83e8c;
+            background-color: rgba(0,0,0,.075);
+            border-radius: 3px;
+        }
+        .analysis-content pre {
+            display: block;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-size: 85%;
+            line-height: 1.45;
+            color: #212529;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .modal-title {
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -184,6 +268,14 @@
             <div class="col-md-3 p-3">
                 <div class="filters-panel">
                     <h5>Filtros</h5>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-primary w-100 mb-2" onclick="aplicarFiltros()">
+                            Aplicar Filtros
+                        </button>
+                        <button type="button" class="btn btn-secondary w-100" onclick="limparFiltros()">
+                            Limpar Filtros
+                        </button>
+                    </div>
                     <form id="filterForm">
                         <div class="mb-3">
                             <label class="form-label">Estado</label>
@@ -262,15 +354,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="mb-3">
-                            <button type="button" class="btn btn-primary w-100 mb-2" onclick="aplicarFiltros()">
-                                Aplicar Filtros
-                            </button>
-                            <button type="button" class="btn btn-secondary w-100" onclick="limparFiltros()">
-                                Limpar Filtros
-                            </button>
-                        </div>
                     </form>
                 </div>
             </div>
@@ -285,6 +368,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         // Função para formatar valores monetários no padrão brasileiro
         function formatarMoeda(valor) {
@@ -473,7 +557,26 @@
                                             `<p><strong>Desconto: ${property.desconto}%</strong></p>` : 
                                             ''}
                                         <p>${property.quartos} quartos | ${property.area}m²</p>
-                                        <a href="${property.link}" target="_blank" class="btn btn-primary btn-sm">Ver Detalhes</a>
+                                        <div class="d-flex gap-2">
+                                            <a href="${property.link}" target="_blank" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-search-plus"></i> Ver Detalhes
+                                            </a>
+                                            ${property.matricula_url ? 
+                                                `<button onclick="analisarMatricula('${property.matricula_url}', '${property.codigo}', ${property.analise_matricula ? 'true' : 'false'})" class="btn ${property.analise_matricula ? 'btn-success' : 'btn-info'} btn-sm">
+                                                    <i class="fas ${property.analise_matricula ? 'fa-file-lines' : 'fa-robot'}"></i> 
+                                                    ${property.analise_matricula ? 'Análise de Matrícula' : 'Analisar Matrícula'}
+                                                </button>` : 
+                                                ''
+                                            }
+                                        </div>
+                                        ${property.matricula_url ? 
+                                            `<p class="mt-2">
+                                                <a href="${property.matricula_url}" target="_blank" class="text-decoration-none">
+                                                    <i class="fas fa-external-link-alt"></i> Ver Matrícula Completa
+                                                </a>
+                                            </p>` : 
+                                            ''
+                                        }
                                     </div>
                                 `);
                             marker.addTo(map);
@@ -548,6 +651,121 @@
             
             // Aplicar os filtros limpos
             aplicarFiltros();
+        }
+
+        // Adicionar função para analisar matrícula
+        function analisarMatricula(matriculaUrl, codigo, temAnalise) {
+            // Remover qualquer modal existente
+            const existingModal = document.getElementById('resultModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            if (temAnalise) {
+                // Se já tem análise, buscar do banco
+                fetch(`/api/propriedades/${codigo}/`)
+                    .then(response => response.json())
+                    .then(propriedade => {
+                        // Mostrar resultado
+                        const resultModalHtml = `
+                            <div class="modal fade" id="resultModal" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Análise da Matrícula</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="analysis-content">
+                                                ${marked.parse(propriedade.analise_matricula)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+                        const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+                        resultModal.show();
+                    })
+                    .catch(error => {
+                        console.error('Erro ao buscar análise:', error);
+                        alert('Erro ao buscar análise da matrícula. Por favor, tente novamente.');
+                    });
+                return;
+            }
+
+            // Mostrar modal de carregamento
+            const loadingModalHtml = `
+                <div class="modal fade" id="loadingModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-body text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2">Analisando matrícula...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
+            const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+            loadingModal.show();
+
+            // Fazer requisição para a API
+            fetch('/api/analisar-matricula/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ 
+                    matricula_url: matriculaUrl,
+                    codigo: codigo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remover modal de carregamento
+                loadingModal.hide();
+                document.getElementById('loadingModal').remove();
+
+                // Mostrar resultado
+                const resultModalHtml = `
+                    <div class="modal fade" id="resultModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Análise da Matrícula</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="analysis-content">
+                                        ${marked.parse(data.analise)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+                const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+                resultModal.show();
+
+                // Recarregar os imóveis para atualizar o botão
+                aplicarFiltros();
+            })
+            .catch(error => {
+                // Remover modal de carregamento
+                loadingModal.hide();
+                document.getElementById('loadingModal').remove();
+
+                // Mostrar erro
+                alert('Erro ao analisar matrícula. Por favor, tente novamente.');
+                console.error('Erro:', error);
+            });
         }
 
         // Carregar imóveis iniciais

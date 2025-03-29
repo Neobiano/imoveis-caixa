@@ -137,4 +137,12 @@ if 'postgresql' in DATABASES['default']['ENGINE']:
     DATABASES['default']['OPTIONS'] = {
         'client_encoding': 'UTF8',
         'connect_timeout': 10,
-    } 
+    }
+
+# Configurações das APIs
+HERE_API_KEY_1 = os.environ.get('HERE_API_KEY_1')
+HERE_API_KEY_2 = os.environ.get('HERE_API_KEY_2')
+HERE_API_KEY_3 = os.environ.get('HERE_API_KEY_3')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+# Configuração do Django Debug Toolbar 

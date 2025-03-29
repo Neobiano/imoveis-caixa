@@ -15,5 +15,7 @@ services:
         sync: false
       - key: HERE_API_KEY_3
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
     healthCheckPath: /
     autoDeploy: true 
