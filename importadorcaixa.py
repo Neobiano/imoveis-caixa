@@ -13,6 +13,11 @@ from bs4 import BeautifulSoup
 import time
 from dotenv import load_dotenv
 from validacao_geografica import ValidadorGeografico
+import urllib3
+import random
+
+# Desabilitar avisos de certificado não verificado
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configurar o Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'imoveis_caixa.settings')
@@ -62,7 +67,16 @@ class ImportadorCaixa:
         self.session = requests.Session()
         self.base_url = "https://venda-imoveis.caixa.gov.br/listaweb/Lista_imoveis_{}.csv"
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
         }
         # Carregar chaves da API do arquivo .env
         self.api_keys = [
@@ -72,7 +86,18 @@ class ImportadorCaixa:
         ]
         self.current_api_key_index = 0
         self.validador_geografico = ValidadorGeografico()
+        self.todas_apis_indisponiveis = False  # Nova flag para controlar disponibilidade das APIs
+        self.apis_com_erro = set()  # Conjunto para rastrear quais APIs já retornaram erro
         logger.info("Iniciando nova sessão de importação")
+
+        # Inicializar a sessão com uma visita à página principal
+        try:
+            logger.info("Inicializando sessão com visita à página principal...")
+            response = self.session.get('https://venda-imoveis.caixa.gov.br/', headers=self.headers, verify=False)
+            response.raise_for_status()
+            time.sleep(2)  # Aguarda 2 segundos antes de prosseguir
+        except Exception as e:
+            logger.error(f"Erro ao inicializar sessão: {str(e)}")
 
     def _get_next_api_key(self):
         """Retorna a próxima API key disponível."""
@@ -116,62 +141,134 @@ class ImportadorCaixa:
 
         return area_total, area_privativa, area_terreno, quartos
 
-    def _baixar_csv(self, estado):
-        """Baixa o arquivo CSV para um estado específico"""
-        try:
-            url = self.base_url.format(estado)
-            logger.info(f"\nTentando baixar CSV de: {url}")
-            
-            response = self.session.get(url, headers=self.headers)
-            logger.info(f"Status da resposta: {response.status_code}")
-            
-            if response.status_code != 200:
-                logger.error(f"Erro ao baixar dados. Status code: {response.status_code}")
-                return None
-            
-            logger.info(f"Download realizado. Tamanho do conteúdo: {len(response.content)} bytes")
-            
-            # Tentar diferentes codificações
-            encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
-            content = None
-            
+    def _baixar_csv(self, url):
+        """Baixa um arquivo CSV da URL fornecida, tentando HTTPS primeiro e HTTP como fallback."""
+        def tentar_decodificar(content):
+            """Tenta decodificar o conteúdo com diferentes codificações"""
+            encodings = ['latin1', 'iso-8859-1', 'cp1252', 'utf-8', 'utf-16', 'ascii']
             for encoding in encodings:
                 try:
-                    content = response.content.decode(encoding)
-                    logger.info(f"Arquivo decodificado com sucesso usando {encoding}")
-                    if len(content) > 0:
-                        logger.debug(f"Primeiros 200 caracteres do conteúdo:")
-                        logger.debug(content[:200])
-                        return content
-                except UnicodeDecodeError:
-                    logger.warning(f"Falha ao decodificar com {encoding}")
+                    texto = content.decode(encoding)
+                    # Verifica se o texto decodificado contém partes do cabeçalho esperado
+                    if ('imovel' in texto.lower() or 'imóvel' in texto.lower()) and \
+                       ('UF' in texto or 'Cidade' in texto or 'Bairro' in texto):
+                        logger.info(f"Conteúdo decodificado com sucesso usando {encoding}")
+                        return texto
+                except UnicodeDecodeError as e:
+                    logger.warning(f"Falha ao decodificar com {encoding}: {str(e)}")
                     continue
-            
-            if content is None:
-                logger.error("ERRO: Não foi possível decodificar o arquivo com nenhuma codificação")
-            return content
-            
-        except Exception as e:
-            logger.error(f"ERRO ao baixar CSV para {estado}: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
+            logger.error("Não foi possível decodificar o conteúdo com nenhuma codificação")
+            # Log dos primeiros bytes do conteúdo para debug
+            logger.error(f"Primeiros 100 bytes do conteúdo: {content[:100]}")
+            # Log do conteúdo em hexadecimal para debug
+            logger.error("Conteúdo em hexadecimal:")
+            logger.error(' '.join(f'{b:02x}' for b in content[:100]))
             return None
+
+        try:
+            # Primeiro tenta com HTTPS, ignorando verificação de certificado
+            logger.info(f"Tentando baixar CSV via HTTPS: {url}")
+            
+            # Adiciona um delay aleatório entre 1 e 3 segundos
+            time.sleep(random.uniform(1, 3))
+            
+            response = self.session.get(url, headers=self.headers, timeout=30, verify=False)
+            response.raise_for_status()
+            
+            # Log do tipo de conteúdo e tamanho
+            logger.info(f"Tipo de conteúdo: {response.headers.get('content-type', 'não especificado')}")
+            logger.info(f"Tamanho do conteúdo: {len(response.content)} bytes")
+            logger.info(f"Headers da resposta:")
+            for header, value in response.headers.items():
+                logger.info(f"  {header}: {value}")
+            
+            # Tenta decodificar o conteúdo
+            content = response.content
+            texto_decodificado = tentar_decodificar(content)
+            
+            if texto_decodificado:
+                # Log dos primeiros 500 caracteres do conteúdo
+                logger.info(f"Primeiros 500 caracteres do conteúdo baixado:")
+                logger.info(texto_decodificado[:500])
+                return texto_decodificado
+                
+            logger.warning("Não foi possível decodificar o conteúdo com nenhuma codificação")
+            return None
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Falha ao baixar CSV via HTTPS: {str(e)}")
+            logger.error(f"Detalhes do erro: {type(e).__name__}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Status code: {e.response.status_code}")
+                logger.error(f"Headers da resposta de erro:")
+                for header, value in e.response.headers.items():
+                    logger.error(f"  {header}: {value}")
+                logger.error(f"Conteúdo da resposta de erro:")
+                logger.error(e.response.text[:500])
+            
+            # Se falhou, tenta com HTTP
+            http_url = url.replace('https://', 'http://')
+            try:
+                logger.info(f"Tentando baixar via HTTP: {http_url}")
+                
+                # Adiciona um delay aleatório entre 1 e 3 segundos
+                time.sleep(random.uniform(1, 3))
+                
+                response = self.session.get(http_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                
+                # Log do tipo de conteúdo e tamanho
+                logger.info(f"Tipo de conteúdo: {response.headers.get('content-type', 'não especificado')}")
+                logger.info(f"Tamanho do conteúdo: {len(response.content)} bytes")
+                logger.info(f"Headers da resposta:")
+                for header, value in response.headers.items():
+                    logger.info(f"  {header}: {value}")
+                
+                # Tenta decodificar o conteúdo
+                content = response.content
+                texto_decodificado = tentar_decodificar(content)
+                
+                if texto_decodificado:
+                    # Log dos primeiros 500 caracteres do conteúdo
+                    logger.info(f"Primeiros 500 caracteres do conteúdo baixado:")
+                    logger.info(texto_decodificado[:500])
+                    return texto_decodificado
+                    
+                logger.warning("Não foi possível decodificar o conteúdo com nenhuma codificação")
+                return None
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Falha ao baixar CSV via HTTP: {str(e)}")
+                logger.error(f"Detalhes do erro: {type(e).__name__}")
+                if hasattr(e, 'response') and e.response is not None:
+                    logger.error(f"Status code: {e.response.status_code}")
+                    logger.error(f"Headers da resposta de erro:")
+                    for header, value in e.response.headers.items():
+                        logger.error(f"  {header}: {value}")
+                    logger.error(f"Conteúdo da resposta de erro:")
+                    logger.error(e.response.text[:500])
+                raise
 
     def _processar_csv(self, conteudo_csv):
         """Processa o conteúdo do CSV"""
         try:
             # Remover linhas vazias e espaços extras
             linhas = [linha for linha in conteudo_csv.splitlines() if linha.strip()]
+            logger.info(f"Total de linhas no CSV após remoção de vazias: {len(linhas)}")
             
             # Encontrar a linha do cabeçalho
             linha_cabecalho = None
             for i, linha in enumerate(linhas):
                 if 'N° do imóvel' in linha:
                     linha_cabecalho = i
+                    logger.info(f"Cabeçalho encontrado na linha {i}")
                     break
             
             if linha_cabecalho is None:
-                logger.error("Cabeçalho não encontrado!")
+                logger.error("Cabeçalho não encontrado no CSV!")
+                logger.error("Primeiras 5 linhas do arquivo:")
+                for i, linha in enumerate(linhas[:5]):
+                    logger.error(f"Linha {i}: {linha}")
                 return []
             
             # Criar um novo CSV apenas com o cabeçalho e os dados
@@ -179,9 +276,13 @@ class ImportadorCaixa:
             csv_processado.write(linhas[linha_cabecalho] + '\n')  # Cabeçalho
             
             # Adicionar apenas as linhas que têm dados
+            linhas_validas = 0
             for linha in linhas[linha_cabecalho + 1:]:
                 if linha.strip() and ';' in linha:
                     csv_processado.write(linha + '\n')
+                    linhas_validas += 1
+            
+            logger.info(f"Total de linhas válidas encontradas: {linhas_validas}")
             
             csv_processado.seek(0)
             
@@ -190,19 +291,28 @@ class ImportadorCaixa:
             
             # Processar as linhas
             dados = []
-            for linha in leitor:
-                # Limpar espaços em branco dos valores
-                item = {k.strip(): v.strip() for k, v in linha.items() if k and k.strip()}
-                if item:
-                    logger.debug(f"Linha processada: {item}")
-                    dados.append(item)
+            for i, linha in enumerate(leitor, 1):
+                try:
+                    # Limpar espaços em branco dos valores
+                    item = {k.strip(): v.strip() for k, v in linha.items() if k and k.strip()}
+                    if item:
+                        logger.debug(f"Linha {i} processada com sucesso")
+                        dados.append(item)
+                    else:
+                        logger.warning(f"Linha {i} está vazia após processamento")
+                except Exception as e:
+                    logger.error(f"Erro ao processar linha {i}: {str(e)}")
+                    logger.error(f"Conteúdo da linha: {linha}")
+                    continue
             
-            logger.info(f"Total de imóveis encontrados: {len(dados)}")
+            logger.info(f"Total de imóveis processados com sucesso: {len(dados)}")
             return dados
             
         except Exception as e:
             logger.error(f"Erro ao processar CSV: {str(e)}")
+            logger.error(f"Tipo do erro: {type(e).__name__}")
             import traceback
+            logger.error("Stack trace completo:")
             logger.error(traceback.format_exc())
             return []
 
@@ -252,66 +362,63 @@ class ImportadorCaixa:
         return tipo if tipo else None
 
     def _obter_coordenadas(self, endereco, cidade, estado):
-        """Obtém as coordenadas de um endereço usando o Here Maps API com rotação de APIs e validação geográfica."""
-        tentativas = 0
-        apis_tentadas = set()
+        """Obtém as coordenadas de um endereço usando a API do Here Maps"""
+        if self.todas_apis_indisponiveis:
+            logger.warning("Todas as APIs do Here Maps estão indisponíveis. Pulando consulta de coordenadas.")
+            return None, None
 
-        while tentativas < len(self.api_keys):
+        try:
+            # Tentar obter coordenadas com a API atual
             api_key = self.api_keys[self.current_api_key_index]
-            if api_key in apis_tentadas:
-                break
-
-            try:
-                url = f"https://geocode.search.hereapi.com/v1/geocode"
-                params = {
-                    'q': endereco,
-                    'apiKey': api_key
-                }
-                
-                response = requests.get(url, params=params)
-                
-                if response.status_code in [401, 429]:  # Unauthorized ou Too Many Requests
-                    logger.warning(f"API Key {api_key[:8]}... não funcionou (status {response.status_code}). Tentando próxima API...")
-                    apis_tentadas.add(api_key)
-                    self.current_api_key_index = (self.current_api_key_index + 1) % len(self.api_keys)
-                    tentativas += 1
-                    continue
-                
-                response.raise_for_status()
-                data = response.json()
-                
-                if data['items']:
-                    position = data['items'][0]['position']
-                    lat, lon = position['lat'], position['lng']
-                    
-                    # Validar coordenadas
-                    lat_validada, lon_validada = self.validador_geografico.validar_coordenadas(
-                        lat=lat,
-                        lon=lon,
-                        cidade=cidade,
-                        uf=estado
-                    )
-                    
-                    if lat_validada is not None and lon_validada is not None:
-                        return lat_validada, lon_validada
-                    
+            if not api_key:
+                logger.error(f"API key {self.current_api_key_index + 1} não configurada")
                 return None, None
 
-            except requests.exceptions.RequestException as e:
-                if any(status in str(e) for status in ["401", "429"]):
-                    logger.warning(f"API Key {api_key[:8]}... não funcionou. Tentando próxima API...")
-                    apis_tentadas.add(api_key)
-                    self.current_api_key_index = (self.current_api_key_index + 1) % len(self.api_keys)
-                    tentativas += 1
-                    continue
-                logger.error(f"Erro na API do Here Maps: {str(e)}")
-                return None, None
+            url = f"https://geocode.search.hereapi.com/v1/geocode"
+            params = {
+                'q': endereco,
+                'apiKey': api_key
+            }
 
-        if tentativas == len(self.api_keys):
-            logger.error("Todas as APIs do Here Maps falharam")
+            response = requests.get(url, params=params)
             
-        # Se não conseguiu coordenadas válidas da API, gerar dentro do município
-        return self.validador_geografico.validar_coordenadas(None, None, cidade, estado)
+            # Se receber erro 429 (Too Many Requests) ou 401 (Unauthorized)
+            if response.status_code in [429, 401]:
+                logger.error(f"API {self.current_api_key_index + 1} retornou erro {response.status_code}")
+                self.apis_com_erro.add(self.current_api_key_index)
+                
+                # Se todas as APIs já retornaram erro
+                if len(self.apis_com_erro) == len(self.api_keys):
+                    logger.error("Todas as APIs do Here Maps retornaram erro. Desabilitando consultas.")
+                    self.todas_apis_indisponiveis = True
+                    return None, None
+                
+                # Tentar próxima API
+                self.current_api_key_index = (self.current_api_key_index + 1) % len(self.api_keys)
+                return self._obter_coordenadas(endereco, cidade, estado)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('items'):
+                position = data['items'][0].get('position', {})
+                latitude = position.get('lat')
+                longitude = position.get('lng')
+
+                if latitude and longitude:
+                    # Validar as coordenadas
+                    if self.validador_geografico.validar_coordenadas(latitude, longitude, cidade, estado):
+                        return latitude, longitude
+                    else:
+                        logger.warning(f"Coordenadas inválidas para o endereço: {endereco}")
+                        return None, None
+
+            logger.warning(f"Nenhuma coordenada encontrada para o endereço: {endereco}")
+            return None, None
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro ao obter coordenadas: {str(e)}")
+            return None, None
 
     def _obter_url_imagem(self, codigo):
         """Obtém a URL da imagem do imóvel usando o padrão F{id_imovel}21 com padding de zeros"""
@@ -329,12 +436,11 @@ class ImportadorCaixa:
     def _processar_imovel(self, dados):
         """Processa os dados de um imóvel do CSV"""
         try:
-            logger.info(f"\nProcessando novo imóvel: {dados.get('N° do imóvel', 'sem código')}")
-            
-            # Extrair o código do imóvel (campo obrigatório)
             codigo = dados.get('N° do imóvel', '').strip()
+            logger.info(f"\nProcessando imóvel {codigo}")
+            
             if not codigo:
-                logger.warning("Imóvel sem código, ignorando...")
+                logger.error("Imóvel sem código, ignorando")
                 return None
 
             # Verificar se o imóvel já existe e tem coordenadas
@@ -345,6 +451,8 @@ class ImportadorCaixa:
 
             # Extrair área e quartos da descrição
             descricao = dados.get('Descrição', '').strip()
+            logger.info(f"Descrição do imóvel: {descricao[:100]}...")
+            
             area_total, area_privativa, area_terreno, quartos = self._extrair_area_quartos(descricao)
             logger.info(f"Áreas extraídas - Total: {area_total}, Privativa: {area_privativa}, Terreno: {area_terreno}, Quartos: {quartos}")
 
@@ -361,15 +469,18 @@ class ImportadorCaixa:
             desconto_texto = dados.get('Desconto', '0').replace('%', '').strip()
             try:
                 desconto = Decimal(desconto_texto)
-            except:
+                logger.info(f"Desconto processado: {desconto}%")
+            except Exception as e:
+                logger.error(f"Erro ao processar desconto '{desconto_texto}': {str(e)}")
                 desconto = Decimal('0')
-            logger.info(f"Desconto: {desconto}%")
 
             endereco = dados.get('Endereço', '').strip()
             bairro = dados.get('Bairro', '').strip()
             cidade = dados.get('Cidade', '').strip()
             estado = dados.get('UF', '').strip()
             link = dados.get('Link de acesso', '').strip()
+            
+            logger.info(f"Endereço completo: {endereco}, {bairro}, {cidade} - {estado}")
 
             # Gerar URL da matrícula
             matricula_url = None
@@ -400,19 +511,21 @@ class ImportadorCaixa:
                 'area_terreno': area_terreno,
                 'quartos': quartos or 0,
                 'link': link,
-                'matricula_url': matricula_url  # Adicionar URL da matrícula
+                'matricula_url': matricula_url
             }
 
-            print(f"Processando imóvel: {imovel['codigo']}")
             # Coletar coordenadas apenas para imóveis novos ou sem coordenadas
             endereco_completo = f"{endereco}, {cidade}, {estado}, Brasil"
+            logger.info(f"Buscando coordenadas para: {endereco_completo}")
+            
             latitude, longitude = self._obter_coordenadas(endereco_completo, cidade, estado)
             imovel['latitude'] = latitude
             imovel['longitude'] = longitude
+            
             if latitude and longitude:
                 logger.info(f"Coordenadas obtidas: Latitude={latitude}, Longitude={longitude}")
             else:
-                logger.warning(f"Não foi possível obter coordenadas para o imóvel {imovel['codigo']}")
+                logger.warning(f"Não foi possível obter coordenadas para o imóvel {codigo}")
 
             # Obter URL da imagem usando apenas o código
             logger.info(f"Buscando imagem para o imóvel {codigo}")
@@ -422,12 +535,14 @@ class ImportadorCaixa:
             else:
                 logger.warning(f"Nenhuma imagem encontrada para o imóvel {codigo}")
 
-            logger.info(f"Imóvel processado com sucesso: {codigo}")
+            logger.info(f"Imóvel {codigo} processado com sucesso")
             return imovel
             
         except Exception as e:
-            logger.error(f"Erro ao processar dados do imóvel: {str(e)}")
+            logger.error(f"Erro ao processar dados do imóvel {dados.get('N° do imóvel', 'sem código')}: {str(e)}")
+            logger.error(f"Tipo do erro: {type(e).__name__}")
             import traceback
+            logger.error("Stack trace completo:")
             logger.error(traceback.format_exc())
             return None
 
@@ -549,7 +664,7 @@ class ImportadorCaixa:
                 total_novos = 0
                 
                 logger.info(f"Baixando dados do estado: {estado}")
-                conteudo_csv = self._baixar_csv(estado)
+                conteudo_csv = self._baixar_csv(self.base_url.format(estado))
                 
                 if not conteudo_csv:
                     logger.error(f"Erro: Não foi possível baixar dados para {estado}")
