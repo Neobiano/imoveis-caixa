@@ -13,6 +13,7 @@ from datetime import datetime
 import time
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
+import random
 
 # Create your views here.
 
@@ -222,9 +223,20 @@ def proxy_imagem(request):
         return HttpResponse(status=400)
         
     try:
+        # Lista de User-Agents para rotação
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        ]
+        
+        # Escolher um User-Agent aleatório
+        user_agent = random.choice(user_agents)
+        
         # Headers mais completos para simular um navegador real
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': user_agent,
             'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -237,19 +249,28 @@ def proxy_imagem(request):
             'Sec-Fetch-Site': 'same-origin',
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache',
+            'DNT': '1',  # Do Not Track
+            'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Upgrade-Insecure-Requests': '1',
         }
 
-        # Lista de proxies públicos brasileiros
-        proxies = [
-            'http://177.87.168.6:53281',
-            'http://187.95.34.135:8080',
-            'http://200.155.139.242:3128',
-            'http://177.152.105.118:8080'
-        ]
-        
-        # Primeira tentativa sem proxy
+        # Primeira tentativa
         try:
-            response = requests.get(
+            # Criar uma sessão para manter cookies
+            session = requests.Session()
+            
+            # Primeiro acessar a página principal para pegar cookies
+            session.get(
+                'https://venda-imoveis.caixa.gov.br/',
+                headers=headers,
+                verify=False,
+                timeout=15
+            )
+            
+            # Agora buscar a imagem
+            response = session.get(
                 url,
                 headers=headers,
                 verify=False,
@@ -269,42 +290,42 @@ def proxy_imagem(request):
             )
             
         except requests.exceptions.RequestException as e:
-            print(f"Erro ao buscar imagem sem proxy: {e}")
-            
-            # Tentar com cada proxy da lista
-            for proxy in proxies:
-                try:
-                    print(f"Tentando com proxy: {proxy}")
-                    proxies_dict = {
-                        'http': proxy,
-                        'https': proxy
-                    }
-                    response = requests.get(
-                        url,
-                        headers=headers,
-                        proxies=proxies_dict,
-                        verify=False,
-                        stream=True,
-                        timeout=15
-                    )
-                    response.raise_for_status()
-                    
-                    # Se conseguiu obter a imagem, retornar com cache
-                    response_headers = {
-                        'Cache-Control': 'public, max-age=31536000',
-                    }
-                    return HttpResponse(
-                        response.content,
-                        content_type=response.headers.get('content-type', 'image/jpeg'),
-                        headers=response_headers
-                    )
-                except:
-                    continue
-            
-            # Se nenhum proxy funcionou, retornar a imagem padrão
-            print("Todos os proxies falharam, retornando imagem padrão")
-            with open('propriedades/static/img/no-image.jpg', 'rb') as f:
-                return HttpResponse(f.read(), content_type='image/jpeg')
+            print(f"Erro ao buscar imagem: {e}")
+            # Em caso de erro, tentar uma segunda vez com delay e outro User-Agent
+            time.sleep(2)
+            try:
+                # Usar outro User-Agent na segunda tentativa
+                headers['User-Agent'] = random.choice([ua for ua in user_agents if ua != headers['User-Agent']])
+                
+                session = requests.Session()
+                session.get(
+                    'https://venda-imoveis.caixa.gov.br/',
+                    headers=headers,
+                    verify=False,
+                    timeout=15
+                )
+                
+                response = session.get(
+                    url,
+                    headers=headers,
+                    verify=False,
+                    stream=True,
+                    timeout=15
+                )
+                response.raise_for_status()
+                
+                response_headers = {
+                    'Cache-Control': 'public, max-age=31536000',
+                }
+                return HttpResponse(
+                    response.content,
+                    content_type=response.headers.get('content-type', 'image/jpeg'),
+                    headers=response_headers
+                )
+            except:
+                # Se falhar novamente, retornar a imagem padrão
+                with open('propriedades/static/img/no-image.jpg', 'rb') as f:
+                    return HttpResponse(f.read(), content_type='image/jpeg')
                     
     except Exception as e:
         print(f"Erro ao buscar imagem: {e}")
