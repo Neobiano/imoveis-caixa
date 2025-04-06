@@ -211,43 +211,44 @@
             favoritosContainer.innerHTML = data.favoritos.map(favorito => `
                 <div class="col-md-6 col-lg-4" data-codigo="${favorito.codigo}">
                     <div class="card favorito-card shadow-sm">
-                        <img src="/api/proxy-imagem/?url=${encodeURIComponent(favorito.imagem_url)}" 
-                             class="favorito-imagem"
-                             alt="Foto do imóvel"
-                             onerror="this.src='/static/img/no-image.jpg'">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="favorito-preco">
-                                    ${formatarMoeda(favorito.valor)}
-                                    ${favorito.desconto ? `<span class="favorito-desconto ms-2">${favorito.desconto}% OFF</span>` : ''}
+                        <div class="card h-100">
+                            <img src="${favorito.imagem_url}" 
+                                 onerror="this.onerror=null; this.src='/api/proxy-imagem/?url=${encodeURIComponent(favorito.imagem_url)}'; console.log('Erro ao carregar imagem direta, tentando proxy:', this.src);"
+                                 class="card-img-top" alt="Foto do imóvel">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="favorito-preco">
+                                        ${formatarMoeda(favorito.valor)}
+                                        ${favorito.desconto ? `<span class="favorito-desconto ms-2">${favorito.desconto}% OFF</span>` : ''}
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div class="favorito-localizacao">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span class="fw-bold">${favorito.estado}</span> - 
-                                <span class="fw-bold">${favorito.cidade}</span>
-                                <div class="mt-1">${favorito.bairro}</div>
-                            </div>
+                                
+                                <div class="favorito-localizacao">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span class="fw-bold">${favorito.estado}</span> - 
+                                    <span class="fw-bold">${favorito.cidade}</span>
+                                    <div class="mt-1">${favorito.bairro}</div>
+                                </div>
 
-                            <p class="favorito-info mb-2">
-                                ${favorito.endereco}
-                            </p>
+                                <p class="favorito-info mb-2">
+                                    ${favorito.endereco}
+                                </p>
 
-                            <div class="favorito-data mb-3">
-                                <i class="far fa-calendar-alt me-1"></i>
-                                Adicionado em ${formatarData(favorito.data_adicao)}
-                            </div>
+                                <div class="favorito-data mb-3">
+                                    <i class="far fa-calendar-alt me-1"></i>
+                                    Adicionado em ${formatarData(favorito.data_adicao)}
+                                </div>
 
-                            <div class="d-flex gap-2">
-                                <a href="/propriedade/${favorito.codigo}/" class="btn btn-primary flex-grow-1">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Ver Detalhes
-                                </a>
-                                <button onclick="removerFavorito('${favorito.codigo}')" 
-                                        class="btn btn-outline-danger">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <a href="/propriedade/${favorito.codigo}/" class="btn btn-primary flex-grow-1">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Ver Detalhes
+                                    </a>
+                                    <button onclick="removerFavorito('${favorito.codigo}')" 
+                                            class="btn btn-outline-danger">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -72,10 +72,9 @@
 <div class="container propriedade-container">
     <div class="row">
         <div class="col-md-8">
-            <img src="/api/proxy-imagem/?url={{ propriedade.imagem_url|urlencode }}" 
-                 alt="Foto do imóvel"
-                 class="propriedade-imagem"
-                 onerror="this.src='/static/img/no-image.jpg'">
+            <img src="{{ propriedade.imagem_url }}" 
+                 onerror="this.onerror=null; this.src='/api/proxy-imagem/?url={{ propriedade.imagem_url|urlencode }}'; console.log('Erro ao carregar imagem direta, tentando proxy:', this.src);"
+                 class="img-fluid" alt="Foto do imóvel">
         </div>
         <div class="col-md-4">
             <div class="propriedade-info">

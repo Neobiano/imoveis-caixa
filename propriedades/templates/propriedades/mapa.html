@@ -879,10 +879,7 @@
         const btnFavoritoClass = isFavorito ? 'btn-danger' : 'btn-outline-danger';
         const btnFavoritoIcon = isFavorito ? 'fas fa-heart' : 'far fa-heart';
         
-        // Debug da URL da imagem
-        console.log('URL da imagem original:', property.imagem_url);
-        
-        // Criar URL do proxy
+        // Criar URL do proxy como fallback
         const proxyUrl = property.imagem_url ? 
             `/api/proxy-imagem/?url=${encodeURIComponent(property.imagem_url)}` : 
             '/static/img/no-image.jpg';
@@ -892,8 +889,8 @@
         return `
             <div class="property-popup">
                 ${property.imagem_url ? 
-                    `<img src="${proxyUrl}" alt="Foto do imóvel" class="property-image"
-                         onerror="this.onerror=null; this.src='/static/img/no-image.jpg'; console.log('Erro ao carregar imagem:', this.src, 'Código:', '${property.codigo}');"
+                    `<img src="${property.imagem_url}" alt="Foto do imóvel" class="property-image"
+                         onerror="this.onerror=null; this.src='${proxyUrl}'; console.log('Erro ao carregar imagem direta, tentando proxy:', this.src, 'Código:', '${property.codigo}');"
                          onload="console.log('Imagem carregada com sucesso:', this.src, 'Código:', '${property.codigo}');">` : 
                     ''
                 }
