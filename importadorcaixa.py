@@ -7,9 +7,6 @@ from io import StringIO
 from decimal import Decimal
 import logging
 from datetime import datetime
-import codecs
-from geopy.geocoders import Nominatim, Here
-from bs4 import BeautifulSoup
 import time
 from dotenv import load_dotenv
 from validacao_geografica import ValidadorGeografico

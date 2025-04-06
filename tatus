@@ -1,0 +1,5 @@
+[33mcommit db53a43edea822bb48656908e9f582eb6c65bd73[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m
+Author: Neobiano <fabianolisboa@gmail.com>
+Date:   Sun Apr 6 12:56:51 2025 -0300
+
+    fix: Ajusta formatação de valores monetários e layout do card de imóveis no mapa

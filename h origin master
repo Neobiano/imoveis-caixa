@@ -1,0 +1,5 @@
+[33mcommit 7a5d0ab867e79447361cf74cdefe187e5e24b614[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m
+Author: Neobiano <fabianolisboa@gmail.com>
+Date:   Sat Apr 5 12:05:04 2025 -0300
+
+    feat: Melhorias no importador da Caixa - Otimização de consultas de coordenadas e logs detalhados

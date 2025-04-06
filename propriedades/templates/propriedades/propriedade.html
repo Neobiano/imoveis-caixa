@@ -1,0 +1,347 @@
+{% extends 'propriedades/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ propriedade.tipo_imovel }} - {{ propriedade.codigo }} - Imóveis Caixa{% endblock %}
+
+{% block extra_css %}
+<style>
+    .propriedade-container {
+        padding: 20px;
+    }
+    .propriedade-imagem {
+        width: 100%;
+        height: 400px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    .propriedade-info {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .propriedade-preco {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 20px;
+    }
+    .propriedade-desconto {
+        background-color: #e74c3c;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        margin-left: 10px;
+    }
+    .propriedade-detalhes {
+        margin-bottom: 20px;
+    }
+    .propriedade-detalhes h3 {
+        font-size: 1.2rem;
+        color: #34495e;
+        margin-bottom: 10px;
+    }
+    .propriedade-detalhes p {
+        color: #7f8c8d;
+        margin-bottom: 5px;
+    }
+    .btn-favoritar {
+        width: 50px;
+    }
+    .btn-favoritar i {
+        font-size: 1.2rem;
+    }
+    .propriedade-acoes {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    .propriedade-matricula {
+        margin-top: 20px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container propriedade-container">
+    <div class="row">
+        <div class="col-md-8">
+            <img src="/api/proxy-imagem/?url={{ propriedade.imagem_url|urlencode }}" 
+                 alt="Foto do imóvel"
+                 class="propriedade-imagem"
+                 onerror="this.src='/static/img/no-image.jpg'">
+        </div>
+        <div class="col-md-4">
+            <div class="propriedade-info">
+                <h2>{{ propriedade.tipo_imovel }} - {{ propriedade.codigo }}</h2>
+                <div class="propriedade-preco">
+                    R$ {{ propriedade.valor|floatformat:2|intcomma }}
+                    {% if propriedade.desconto %}
+                    <span class="propriedade-desconto">{{ propriedade.desconto }}% OFF</span>
+                    {% endif %}
+                </div>
+
+                <div class="propriedade-detalhes">
+                    <h3>Localização</h3>
+                    <p>{{ propriedade.endereco }}</p>
+                    <p>{{ propriedade.bairro }}</p>
+                    <p>{{ propriedade.cidade }} - {{ propriedade.estado }}</p>
+                </div>
+
+                <div class="propriedade-detalhes">
+                    <h3>Características</h3>
+                    <p>{{ propriedade.quartos }} quartos</p>
+                    <p>{{ propriedade.area }}m²</p>
+                    {% if propriedade.valor_avaliacao %}
+                    <p>Valor de Avaliação: R$ {{ propriedade.valor_avaliacao|floatformat:2|intcomma }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="propriedade-acoes">
+                    <a href="{{ propriedade.link }}" target="_blank" class="btn btn-primary flex-grow-1">
+                        <i class="fas fa-external-link-alt"></i> Ver no Site da Caixa
+                    </a>
+                    <button onclick="toggleFavorite('{{ propriedade.codigo }}')" 
+                            data-codigo="{{ propriedade.codigo }}" 
+                            class="btn btn-outline-danger btn-favoritar">
+                        <i class="far fa-heart"></i>
+                    </button>
+                </div>
+
+                {% if propriedade.matricula_url %}
+                <div class="propriedade-matricula">
+                    <button onclick="analisarMatricula('{{ propriedade.matricula_url }}', '{{ propriedade.codigo }}', {{ propriedade.analise_matricula|yesno:'true,false' }})" 
+                            class="btn {{ propriedade.analise_matricula|yesno:'btn-success,btn-info' }} btn-sm w-100">
+                        <i class="fas {{ propriedade.analise_matricula|yesno:'fa-file-lines,fa-robot' }}"></i> 
+                        {{ propriedade.analise_matricula|yesno:'Análise de Matrícula,Analisar Matrícula' }}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Variável global para armazenar os favoritos
+    let favoritos = new Set();
+
+    // Função para carregar os favoritos do usuário
+    function carregarFavoritos() {
+        if (document.querySelector('#userDropdown')) {
+            fetch('/api/usuarios/favoritos/')
+            .then(response => response.json())
+            .then(data => {
+                favoritos.clear();
+                if (data.favoritos) {
+                    data.favoritos.forEach(fav => favoritos.add(fav.codigo));
+                }
+                // Atualizar todos os botões de favorito visíveis
+                document.querySelectorAll('button[data-codigo]').forEach(btn => {
+                    atualizarBotaoFavorito(btn, favoritos.has(btn.dataset.codigo));
+                });
+            })
+            .catch(error => {
+                console.error('Erro ao carregar favoritos:', error);
+                showToast('Erro ao carregar favoritos. Tente novamente.', 'error');
+            });
+        }
+    }
+
+    // Função para atualizar o visual do botão de favorito
+    function atualizarBotaoFavorito(btn, isFavorito) {
+        if (isFavorito) {
+            btn.innerHTML = '<i class="fas fa-heart"></i>';
+            btn.classList.add('btn-danger');
+            btn.classList.remove('btn-outline-danger');
+        } else {
+            btn.innerHTML = '<i class="far fa-heart"></i>';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-outline-danger');
+        }
+    }
+
+    // Função para adicionar/remover favorito
+    function toggleFavorite(codigo) {
+        // Verificar se o usuário está logado
+        if (!document.querySelector('#userDropdown')) {
+            // Criar modal de aviso
+            const modalHtml = `
+                <div class="modal fade" id="loginModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Necessário fazer login</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <i class="fas fa-user-lock fa-3x mb-3 text-primary"></i>
+                                <p class="mb-3">Para favoritar imóveis é necessário estar logado.</p>
+                                <p>Faça login com sua conta Google para salvar seus imóveis favoritos e receber notificações sobre novas oportunidades.</p>
+                            </div>
+                            <div class="modal-footer justify-content-center">
+                                <a href="/accounts/google/login/?process=login" class="btn btn-primary">
+                                    <i class="fab fa-google me-2"></i> Entrar com Google
+                                </a>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remover modal anterior se existir
+            const existingModal = document.getElementById('loginModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar e mostrar o novo modal
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('loginModal'));
+            modal.show();
+            return;
+        }
+
+        // Se chegou aqui, o usuário está logado
+        fetch(`/api/usuarios/favoritos/${codigo}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const btn = document.querySelector(`button[data-codigo="${codigo}"]`);
+                if (data.action === 'added') {
+                    favoritos.add(codigo);
+                    if (btn) atualizarBotaoFavorito(btn, true);
+                    showToast('Imóvel adicionado aos favoritos!', 'success');
+                } else {
+                    favoritos.delete(codigo);
+                    if (btn) atualizarBotaoFavorito(btn, false);
+                    showToast('Imóvel removido dos favoritos!', 'info');
+                }
+            } else {
+                showToast('Erro ao atualizar favoritos. Tente novamente.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao alternar favorito:', error);
+            showToast('Erro ao atualizar favoritos. Tente novamente.', 'error');
+        });
+    }
+
+    function showToast(message, type = 'info') {
+        const toastHtml = `
+            <div class="toast-container position-fixed bottom-0 end-0 p-3">
+                <div class="toast" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-${type === 'success' ? 'check-circle text-success' : 
+                                        type === 'error' ? 'exclamation-circle text-danger' : 
+                                        'info-circle text-info'} me-2"></i>
+                        <strong class="me-auto">Notificação</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingContainer = document.querySelector('.toast-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+        
+        document.body.insertAdjacentHTML('beforeend', toastHtml);
+        const toastEl = document.querySelector('.toast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+    }
+
+    // Função para analisar a matrícula
+    function analisarMatricula(matriculaUrl, codigo, temAnalise) {
+        // Mostrar modal de carregamento
+        const loadingModalHtml = `
+            <div class="modal fade" id="loadingModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-body text-center">
+                            <div class="spinner-border text-primary mb-3" role="status"></div>
+                            <p class="mb-0">${temAnalise ? 'Carregando análise...' : 'Analisando matrícula...'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+
+        // Fazer requisição para analisar a matrícula
+        fetch('/api/analisar-matricula/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                matricula_url: matriculaUrl,
+                codigo: codigo
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remover modal de carregamento
+            loadingModal.hide();
+            document.getElementById('loadingModal').remove();
+
+            // Mostrar resultado
+            const resultModalHtml = `
+                <div class="modal fade" id="resultModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Análise da Matrícula</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="analysis-content">
+                                    ${marked.parse(data.analise)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+            const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+            resultModal.show();
+        })
+        .catch(error => {
+            // Remover modal de carregamento
+            loadingModal.hide();
+            document.getElementById('loadingModal').remove();
+
+            // Mostrar erro
+            showToast('Erro ao analisar matrícula. Tente novamente.', 'error');
+            console.error('Erro:', error);
+        });
+    }
+
+    // Carregar favoritos ao iniciar
+    carregarFavoritos();
+</script>
+{% endblock %} 

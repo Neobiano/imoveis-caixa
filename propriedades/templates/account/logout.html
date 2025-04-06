@@ -1,0 +1,31 @@
+{% extends "propriedades/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Sair" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="text-center mb-4">{% trans "Sair" %}</h1>
+
+                    <p class="text-center">Tem certeza que deseja sair?</p>
+
+                    <form method="post" action="{% url 'account_logout' %}">
+                        {% csrf_token %}
+                        {% if redirect_field_value %}
+                        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}"/>
+                        {% endif %}
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger">{% trans "Sair" %}</button>
+                            <a href="{% url 'mapa' %}" class="btn btn-secondary">{% trans "Cancelar" %}</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

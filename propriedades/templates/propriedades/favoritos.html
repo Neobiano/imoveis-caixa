@@ -1,0 +1,273 @@
+{% extends 'propriedades/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Meus Favoritos - Imóveis Caixa{% endblock %}
+
+{% block extra_css %}
+<style>
+    .favoritos-container {
+        padding: 20px;
+    }
+    .favorito-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    .favorito-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    .favorito-imagem {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+    }
+    .favorito-info {
+        padding: 15px;
+    }
+    .favorito-preco {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    .favorito-endereco {
+        color: #7f8c8d;
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+    }
+    .favorito-data {
+        font-size: 0.8rem;
+        color: #95a5a6;
+        margin-bottom: 15px;
+    }
+    .favorito-acoes {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .btn-remover {
+        color: #e74c3c;
+        border-color: #e74c3c;
+    }
+    .btn-remover:hover {
+        background-color: #e74c3c;
+        color: white;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        color: #bdc3c7;
+        margin-bottom: 20px;
+    }
+    .empty-state h3 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    .empty-state p {
+        color: #7f8c8d;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container favoritos-container">
+    <h2 class="mb-4">Meus Favoritos</h2>
+    
+    <div id="favoritos-container" class="row">
+        <!-- Será preenchido via JavaScript -->
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Remoção</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja remover este imóvel dos favoritos?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmRemove">Remover</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let confirmCallback = null;
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    
+    document.getElementById('confirmRemove').addEventListener('click', function() {
+        if (confirmCallback) {
+            confirmCallback();
+            confirmModal.hide();
+        }
+    });
+
+    function formatarData(dataString) {
+        const data = new Date(dataString);
+        return data.toLocaleDateString('pt-BR');
+    }
+
+    function formatarMoeda(valor) {
+        return valor.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+    }
+
+    function removerFavorito(codigo) {
+        confirmCallback = function() {
+            fetch(`/api/usuarios/favoritos/${codigo}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    carregarFavoritos();
+                    showToast('Imóvel removido dos favoritos!', 'success');
+                } else {
+                    showToast('Erro ao remover favorito. Tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao remover favorito:', error);
+                showToast('Erro ao remover favorito. Tente novamente.', 'error');
+            });
+        };
+        confirmModal.show();
+    }
+
+    function showToast(message, type = 'info') {
+        const toastHtml = `
+            <div class="toast-container position-fixed bottom-0 end-0 p-3">
+                <div class="toast" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-${type === 'success' ? 'check-circle text-success' : 
+                                        type === 'error' ? 'exclamation-circle text-danger' : 
+                                        'info-circle text-info'} me-2"></i>
+                        <strong class="me-auto">Notificação</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingContainer = document.querySelector('.toast-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+        
+        document.body.insertAdjacentHTML('beforeend', toastHtml);
+        const toastEl = document.querySelector('.toast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+    }
+
+    function carregarFavoritos() {
+        const favoritosContainer = document.getElementById('favoritos-container');
+        favoritosContainer.innerHTML = '<div class="text-center w-100"><div class="spinner-border text-primary" role="status"></div></div>';
+
+        fetch('/api/usuarios/favoritos/')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.favoritos || data.favoritos.length === 0) {
+                favoritosContainer.innerHTML = `
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <i class="far fa-heart"></i>
+                            <h3>Nenhum imóvel favorito</h3>
+                            <p>Você ainda não adicionou nenhum imóvel aos favoritos.</p>
+                            <a href="/mapa/" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Buscar Imóveis
+                            </a>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            favoritosContainer.innerHTML = data.favoritos.map(favorito => `
+                <div class="col-md-6 col-lg-4" data-codigo="${favorito.codigo}">
+                    <div class="card favorito-card shadow-sm">
+                        <img src="/api/proxy-imagem/?url=${encodeURIComponent(favorito.imagem_url)}" 
+                             class="favorito-imagem"
+                             alt="Foto do imóvel"
+                             onerror="this.src='/static/img/no-image.jpg'">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="favorito-preco">
+                                    ${formatarMoeda(favorito.valor)}
+                                    ${favorito.desconto ? `<span class="favorito-desconto ms-2">${favorito.desconto}% OFF</span>` : ''}
+                                </div>
+                            </div>
+                            
+                            <div class="favorito-localizacao">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span class="fw-bold">${favorito.estado}</span> - 
+                                <span class="fw-bold">${favorito.cidade}</span>
+                                <div class="mt-1">${favorito.bairro}</div>
+                            </div>
+
+                            <p class="favorito-info mb-2">
+                                ${favorito.endereco}
+                            </p>
+
+                            <div class="favorito-data mb-3">
+                                <i class="far fa-calendar-alt me-1"></i>
+                                Adicionado em ${formatarData(favorito.data_adicao)}
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <a href="/propriedade/${favorito.codigo}/" class="btn btn-primary flex-grow-1">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Ver Detalhes
+                                </a>
+                                <button onclick="removerFavorito('${favorito.codigo}')" 
+                                        class="btn btn-outline-danger">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        })
+        .catch(error => {
+            console.error('Erro ao carregar favoritos:', error);
+            favoritosContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-circle"></i>
+                        Erro ao carregar favoritos. Por favor, tente novamente.
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // Carregar favoritos ao iniciar
+    carregarFavoritos();
+</script>
+{% endblock %} 

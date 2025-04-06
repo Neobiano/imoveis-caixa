@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from .models import Propriedade
@@ -10,6 +10,14 @@ from django.conf import settings
 import os
 import uuid
 from datetime import datetime
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+import time
+from django.contrib.auth.decorators import login_required
+from django.http import Http404
+
+# Desabilitar avisos de certificado inválido
+urllib3.disable_warnings(InsecureRequestWarning)
 
 # Create your views here.
 
@@ -210,3 +218,59 @@ def get_propriedade(request, codigo):
         })
     except Propriedade.DoesNotExist:
         return JsonResponse({'error': 'Propriedade não encontrada'}, status=404)
+
+@require_http_methods(["GET"])
+def proxy_imagem(request):
+    """View para servir como proxy de imagens do site da Caixa"""
+    url = request.GET.get('url')
+    if not url:
+        return HttpResponse(status=400)
+        
+    try:
+        # Headers para simular um navegador real
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Referer': 'https://venda-imoveis.caixa.gov.br/',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-origin',
+        }
+        
+        # Fazer requisição ignorando verificação de certificado
+        response = requests.get(url, verify=False, stream=True, headers=headers, timeout=10)
+        
+        # Se receber 403, tentar novamente com delay
+        if response.status_code == 403:
+            time.sleep(1)  # Esperar 1 segundo
+            response = requests.get(url, verify=False, stream=True, headers=headers, timeout=10)
+        
+        response.raise_for_status()
+        
+        # Retornar a imagem
+        return HttpResponse(
+            response.content,
+            content_type=response.headers.get('content-type', 'image/jpeg')
+        )
+    except Exception as e:
+        print(f"Erro ao buscar imagem: {e}")
+        return HttpResponse(status=404)
+
+@login_required
+def favoritos_view(request):
+    """
+    View para renderizar a página de favoritos.
+    """
+    return render(request, 'propriedades/favoritos.html')
+
+@login_required
+def propriedade_view(request, codigo):
+    """
+    View para renderizar a página de detalhes de uma propriedade.
+    """
+    try:
+        propriedade = Propriedade.objects.get(codigo=codigo)
+        return render(request, 'propriedades/propriedade.html', {'propriedade': propriedade})
+    except Propriedade.DoesNotExist:
+        raise Http404("Propriedade não encontrada")
