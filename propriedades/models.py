@@ -24,7 +24,9 @@ class Propriedade(models.Model):
     data_atualizacao = models.DateTimeField(auto_now=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    imagem_url = models.CharField(max_length=500, null=True, blank=True)
+    imagem_url = models.URLField(max_length=500, null=True, blank=True)
+    imagem_cloudinary_url = models.URLField(max_length=500, null=True, blank=True)
+    imagem_cloudinary_id = models.CharField(max_length=100, null=True, blank=True)
     matricula_url = models.URLField(blank=True, null=True, verbose_name='URL da Matrícula')
     analise_matricula = models.TextField(blank=True, null=True, verbose_name='Análise da Matrícula')
 

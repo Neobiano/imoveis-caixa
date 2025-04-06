@@ -880,16 +880,16 @@
         const btnFavoritoIcon = isFavorito ? 'fas fa-heart' : 'far fa-heart';
         
         // Criar URL do proxy como fallback
-        const proxyUrl = property.imagem_url ? 
-            `/api/proxy-imagem/?url=${encodeURIComponent(property.imagem_url)}` : 
+        const proxyUrl = property.imagem_cloudinary_url ? 
+            `/api/proxy-imagem/?url=${encodeURIComponent(property.imagem_cloudinary_url)}` : 
             '/static/img/no-image.jpg';
             
         console.log('URL do proxy:', proxyUrl);
         
         return `
             <div class="property-popup">
-                ${property.imagem_url ? 
-                    `<img src="${property.imagem_url}" alt="Foto do imóvel" class="property-image"
+                ${property.imagem_cloudinary_url ? 
+                    `<img src="${property.imagem_cloudinary_url}" alt="Imagem do imóvel" class="img-fluid"
                          onerror="this.onerror=null; this.src='${proxyUrl}'; console.log('Erro ao carregar imagem direta, tentando proxy:', this.src, 'Código:', '${property.codigo}');"
                          onload="console.log('Imagem carregada com sucesso:', this.src, 'Código:', '${property.codigo}');">` : 
                     ''
