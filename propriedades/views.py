@@ -15,6 +15,8 @@ from urllib3.exceptions import InsecureRequestWarning
 import time
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
+from urllib3.util.retry import Retry
+from urllib3.adapters import HTTPAdapter
 
 # Desabilitar avisos de certificado inválido
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -227,35 +229,61 @@ def proxy_imagem(request):
         return HttpResponse(status=400)
         
     try:
-        # Headers para simular um navegador real
+        # Headers mais completos para simular um navegador real
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
             'Referer': 'https://venda-imoveis.caixa.gov.br/',
             'Sec-Fetch-Dest': 'image',
             'Sec-Fetch-Mode': 'no-cors',
             'Sec-Fetch-Site': 'same-origin',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
         }
         
-        # Fazer requisição ignorando verificação de certificado
-        response = requests.get(url, verify=False, stream=True, headers=headers, timeout=10)
+        # Configuração da sessão com retry
+        session = requests.Session()
+        retries = Retry(total=3,
+                       backoff_factor=0.5,
+                       status_forcelist=[403, 429, 500, 502, 503, 504])
+        session.mount('https://', HTTPAdapter(max_retries=retries))
         
-        # Se receber 403, tentar novamente com delay
-        if response.status_code == 403:
-            time.sleep(1)  # Esperar 1 segundo
-            response = requests.get(url, verify=False, stream=True, headers=headers, timeout=10)
+        # Fazer requisição com a sessão configurada
+        response = session.get(
+            url,
+            headers=headers,
+            verify=False,  # Ignorar verificação SSL
+            stream=True,
+            timeout=15
+        )
+        
+        # Se a imagem não for encontrada, retornar a imagem padrão
+        if response.status_code == 404:
+            with open('propriedades/static/img/no-image.jpg', 'rb') as f:
+                return HttpResponse(f.read(), content_type='image/jpeg')
         
         response.raise_for_status()
         
-        # Retornar a imagem
+        # Retornar a imagem com cache
+        response_headers = {
+            'Content-Type': response.headers.get('content-type', 'image/jpeg'),
+            'Cache-Control': 'public, max-age=31536000',  # Cache por 1 ano
+        }
+        
         return HttpResponse(
             response.content,
-            content_type=response.headers.get('content-type', 'image/jpeg')
+            content_type=response.headers.get('content-type', 'image/jpeg'),
+            headers=response_headers
         )
+        
     except Exception as e:
         print(f"Erro ao buscar imagem: {e}")
-        return HttpResponse(status=404)
+        # Em caso de erro, retornar a imagem padrão
+        with open('propriedades/static/img/no-image.jpg', 'rb') as f:
+            return HttpResponse(f.read(), content_type='image/jpeg')
 
 @login_required
 def favoritos_view(request):
