@@ -11,4 +11,6 @@ whitenoise==6.6.0
 gunicorn==21.2.0
 dj-database-url==2.1.0
 django-heroku==0.3.1
-django-allauth==0.60.1 
+django-allauth==0.60.1
+google-auth>=2.27.0
+google-api-python-client>=2.0.0 
