@@ -23,8 +23,10 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 # Configuração de hosts permitidos baseada no ambiente
 if IS_PRODUCTION:
     ALLOWED_HOSTS = ['imoveis-caixa.onrender.com']
+    CSRF_TRUSTED_ORIGINS = ['https://imoveis-caixa.onrender.com']
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
 
 # Application definition
 INSTALLED_APPS = [
