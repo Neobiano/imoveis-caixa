@@ -239,7 +239,15 @@ def proxy_imagem(request):
             'Cache-Control': 'no-cache',
         }
 
-        # Primeira tentativa
+        # Lista de proxies públicos brasileiros
+        proxies = [
+            'http://177.87.168.6:53281',
+            'http://187.95.34.135:8080',
+            'http://200.155.139.242:3128',
+            'http://177.152.105.118:8080'
+        ]
+        
+        # Primeira tentativa sem proxy
         try:
             response = requests.get(
                 url,
@@ -261,31 +269,42 @@ def proxy_imagem(request):
             )
             
         except requests.exceptions.RequestException as e:
-            print(f"Erro ao buscar imagem: {e}")
-            # Em caso de erro, tentar uma segunda vez com delay
-            time.sleep(2)
-            try:
-                response = requests.get(
-                    url,
-                    headers=headers,
-                    verify=False,
-                    stream=True,
-                    timeout=15
-                )
-                response.raise_for_status()
-                
-                response_headers = {
-                    'Cache-Control': 'public, max-age=31536000',
-                }
-                return HttpResponse(
-                    response.content,
-                    content_type=response.headers.get('content-type', 'image/jpeg'),
-                    headers=response_headers
-                )
-            except:
-                # Se falhar novamente, retornar a imagem padrão
-                with open('propriedades/static/img/no-image.jpg', 'rb') as f:
-                    return HttpResponse(f.read(), content_type='image/jpeg')
+            print(f"Erro ao buscar imagem sem proxy: {e}")
+            
+            # Tentar com cada proxy da lista
+            for proxy in proxies:
+                try:
+                    print(f"Tentando com proxy: {proxy}")
+                    proxies_dict = {
+                        'http': proxy,
+                        'https': proxy
+                    }
+                    response = requests.get(
+                        url,
+                        headers=headers,
+                        proxies=proxies_dict,
+                        verify=False,
+                        stream=True,
+                        timeout=15
+                    )
+                    response.raise_for_status()
+                    
+                    # Se conseguiu obter a imagem, retornar com cache
+                    response_headers = {
+                        'Cache-Control': 'public, max-age=31536000',
+                    }
+                    return HttpResponse(
+                        response.content,
+                        content_type=response.headers.get('content-type', 'image/jpeg'),
+                        headers=response_headers
+                    )
+                except:
+                    continue
+            
+            # Se nenhum proxy funcionou, retornar a imagem padrão
+            print("Todos os proxies falharam, retornando imagem padrão")
+            with open('propriedades/static/img/no-image.jpg', 'rb') as f:
+                return HttpResponse(f.read(), content_type='image/jpeg')
                     
     except Exception as e:
         print(f"Erro ao buscar imagem: {e}")
