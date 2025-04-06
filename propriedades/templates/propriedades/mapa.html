@@ -1,285 +1,377 @@
+{% extends 'propriedades/base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Imóveis Caixa - Mapa</title>
-    
-    {% csrf_token %}
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% load account socialaccount %}
 
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
-    <style>
-        #map {
-            height: calc(100vh - 60px);
-            width: 100%;
-        }
-        .filters-panel {
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        .property-popup {
-            max-width: 300px;
-        }
-        .property-popup img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-        }
-        .property-popup h1,
-        .property-popup h2,
-        .property-popup h3,
-        .property-popup h4,
-        .property-popup h5,
-        .property-popup h6 {
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        .custom-div-icon {
-            background: #fff;
-            border-radius: 50%;
-            width: 30px !important;
-            height: 30px !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid #666;
-        }
-        .custom-div-icon i {
-            color: #666;
-            font-size: 14px;
-        }
-        .custom-div-icon.casa {
-            border-color: #28a745;
-        }
-        .custom-div-icon.casa i {
-            color: #28a745;
-        }
-        .custom-div-icon.apartamento {
-            border-color: #007bff;
-        }
-        .custom-div-icon.apartamento i {
-            color: #007bff;
-        }
-        .custom-div-icon.terreno {
-            border-color: #fd7e14;
-        }
-        .custom-div-icon.terreno i {
-            color: #fd7e14;
-        }
-        .custom-div-icon.comercial {
-            border-color: #6f42c1;
-        }
-        .custom-div-icon.comercial i {
-            color: #6f42c1;
-        }
-        .custom-div-icon.rural {
-            border-color: #20c997;
-        }
-        .custom-div-icon.rural i {
-            color: #20c997;
-        }
-        /* Estilo para o slider de desconto */
-        .desconto-slider {
-            width: 100%;
-            margin: 10px 0;
-        }
-        .desconto-valor {
-            text-align: center;
-            font-weight: bold;
-            margin: 5px 0;
-            color: #007bff;
-        }
-        .slider-container {
-            text-align: center;
-            padding: 10px 0;
-        }
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #e9ecef;
-            outline: none;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #007bff;
-            cursor: pointer;
-            transition: background .15s ease-in-out;
-        }
-        input[type="range"]::-webkit-slider-thumb:hover {
-            background: #0056b3;
-        }
-        .btn-obter-valor {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            margin-top: 10px;
-            width: 100%;
-        }
-        .btn-obter-valor:hover {
-            background: #0056b3;
-        }
-        /* Estilo para o botão Ver Detalhes */
-        .btn-primary {
-            color: #000000 !important;
-            font-weight: 500;
-        }
-        /* Estilo para os checkboxes */
-        .checkbox-group {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        .checkbox-search {
-            width: 100%;
-            padding: 5px;
-            margin-bottom: 10px;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-        }
-        .checkbox-item {
-            display: block;
-            margin-bottom: 5px;
-        }
-        .checkbox-item input[type="checkbox"] {
-            margin-right: 5px;
-        }
-        .checkbox-item label {
-            cursor: pointer;
-            user-select: none;
-        }
-        .checkbox-group::-webkit-scrollbar {
-            width: 8px;
-        }
-        .checkbox-group::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-        .checkbox-group::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-        .checkbox-group::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        /* Estilos para o conteúdo markdown */
-        .analysis-content {
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-        .analysis-content h1,
-        .analysis-content h2,
-        .analysis-content h3,
-        .analysis-content h4,
-        .analysis-content h5,
-        .analysis-content h6 {
-            font-size: 0.9rem;
-            margin-top: 1rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            line-height: 1.25;
-        }
-        .analysis-content h1 { font-size: 1.1rem; }
-        .analysis-content h2 { font-size: 0.9rem; }
-        .analysis-content h3 { font-size: 0.85rem; }
-        .analysis-content h4,
-        .analysis-content h5,
-        .analysis-content h6 { font-size: 0.8rem; }
-        .analysis-content p {
-            margin-bottom: 1rem;
-        }
-        .analysis-content ul,
-        .analysis-content ol {
-            margin-bottom: 1rem;
-            padding-left: 2rem;
-        }
-        .analysis-content li {
-            margin-bottom: 0.5rem;
-        }
-        .analysis-content strong {
-            font-weight: 600;
-        }
-        .analysis-content em {
-            font-style: italic;
-        }
-        .analysis-content blockquote {
-            margin: 1rem 0;
-            padding: 0.5rem 1rem;
-            border-left: 4px solid #dee2e6;
-            color: #6c757d;
-        }
-        .analysis-content code {
-            padding: 0.2rem 0.4rem;
-            font-size: 85%;
-            color: #e83e8c;
-            background-color: rgba(0,0,0,.075);
-            border-radius: 3px;
-        }
-        .analysis-content pre {
-            display: block;
-            padding: 1rem;
-            margin: 1rem 0;
-            font-size: 85%;
-            line-height: 1.45;
-            color: #212529;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-        }
-        .modal-title {
-            font-size: 0.9rem;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Imóveis Caixa</a>
-        </div>
-    </nav>
+{% block title %}Imóveis Caixa - Mapa{% endblock %}
 
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Filtros -->
-            <div class="col-md-3 p-3">
-                <div class="filters-panel">
-                    <h5>Filtros</h5>
-                    <div class="mb-3">
-                        <button type="button" class="btn btn-primary w-100 mb-2" onclick="aplicarFiltros()">
-                            Aplicar Filtros
-                        </button>
-                        <button type="button" class="btn btn-secondary w-100" onclick="limparFiltros()">
-                            Limpar Filtros
-                        </button>
-                    </div>
-                    <form id="filterForm">
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+    #map {
+        height: calc(100vh - 60px);
+        width: 100%;
+    }
+    .filters-panel {
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .property-popup {
+        max-width: 300px;
+        padding: 10px;
+    }
+    .property-popup img {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+    .property-popup h6 {
+        font-size: 14px;
+        margin-bottom: 4px;
+        font-weight: 600;
+        color: #333;
+    }
+    .property-popup p {
+        font-size: 13px;
+        margin-bottom: 4px;
+        color: #666;
+        line-height: 1.3;
+    }
+    .property-popup .price {
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+    }
+    .property-popup .discount {
+        color: #28a745;
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .property-popup .btn {
+        font-size: 12px;
+        padding: 4px 8px;
+        margin-top: 8px;
+    }
+    .property-popup .btn i {
+        margin-right: 4px;
+        font-size: 11px;
+    }
+    .property-popup .links {
+        margin-top: 8px;
+        font-size: 12px;
+    }
+    .property-popup .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+        color: #fff !important;
+    }
+    .property-popup .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+    .property-popup .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    .property-popup .btn-danger:hover {
+        background-color: #c82333;
+        border-color: #bd2130;
+    }
+    .property-popup .btn-outline-danger {
+        color: #dc3545;
+        border-color: #dc3545;
+    }
+    .property-popup .btn-outline-danger:hover {
+        color: #fff;
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+
+    /* Estilos para os toasts */
+    .toast-container {
+        z-index: 9999;
+    }
+    .toast {
+        background-color: #fff;
+        border: none;
+        box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+    }
+    .toast-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .toast-body {
+        padding: 0.75rem;
+        color: #333;
+    }
+    .property-image-container {
+        width: 100%;
+        height: 200px;
+        overflow: hidden;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        background-color: #f8f9fa;
+    }
+    .property-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+    }
+    .custom-div-icon {
+        background: #fff;
+        border-radius: 50%;
+        width: 30px !important;
+        height: 30px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #666;
+    }
+    .custom-div-icon i {
+        color: #666;
+        font-size: 14px;
+    }
+    .custom-div-icon.casa {
+        border-color: #28a745;
+    }
+    .custom-div-icon.casa i {
+        color: #28a745;
+    }
+    .custom-div-icon.apartamento {
+        border-color: #007bff;
+    }
+    .custom-div-icon.apartamento i {
+        color: #007bff;
+    }
+    .custom-div-icon.terreno {
+        border-color: #fd7e14;
+    }
+    .custom-div-icon.terreno i {
+        color: #fd7e14;
+    }
+    .custom-div-icon.comercial {
+        border-color: #6f42c1;
+    }
+    .custom-div-icon.comercial i {
+        color: #6f42c1;
+    }
+    .custom-div-icon.rural {
+        border-color: #20c997;
+    }
+    .custom-div-icon.rural i {
+        color: #20c997;
+    }
+    /* Estilo para o slider de desconto */
+    .desconto-slider {
+        width: 100%;
+        margin: 10px 0;
+    }
+    .desconto-valor {
+        text-align: center;
+        font-weight: bold;
+        margin: 5px 0;
+        color: #007bff;
+    }
+    .slider-container {
+        text-align: center;
+        padding: 10px 0;
+    }
+    input[type="range"] {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 8px;
+        border-radius: 5px;
+        background: #e9ecef;
+        outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #007bff;
+        cursor: pointer;
+        transition: background .15s ease-in-out;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+        background: #0056b3;
+    }
+    .btn-obter-valor {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-top: 10px;
+        width: 100%;
+    }
+    .btn-obter-valor:hover {
+        background: #0056b3;
+    }
+    /* Estilo para o botão Ver Detalhes */
+    .btn-primary {
+        color: #000000 !important;
+        font-weight: 500;
+    }
+    /* Estilo para os checkboxes */
+    .checkbox-group {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    .checkbox-search {
+        width: 100%;
+        padding: 5px;
+        margin-bottom: 10px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    .checkbox-item {
+        display: block;
+        margin-bottom: 5px;
+    }
+    .checkbox-item input[type="checkbox"] {
+        margin-right: 5px;
+    }
+    .checkbox-item label {
+        cursor: pointer;
+        user-select: none;
+    }
+    .checkbox-group::-webkit-scrollbar {
+        width: 8px;
+    }
+    .checkbox-group::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    .checkbox-group::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    .checkbox-group::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    /* Estilos para o conteúdo markdown */
+    .analysis-content {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+    .analysis-content h1,
+    .analysis-content h2,
+    .analysis-content h3,
+    .analysis-content h4,
+    .analysis-content h5,
+    .analysis-content h6 {
+        font-size: 0.9rem;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+    .analysis-content h1 { font-size: 1.1rem; }
+    .analysis-content h2 { font-size: 0.9rem; }
+    .analysis-content h3 { font-size: 0.85rem; }
+    .analysis-content h4,
+    .analysis-content h5,
+    .analysis-content h6 { font-size: 0.8rem; }
+    .analysis-content p {
+        margin-bottom: 1rem;
+    }
+    .analysis-content ul,
+    .analysis-content ol {
+        margin-bottom: 1rem;
+        padding-left: 2rem;
+    }
+    .analysis-content li {
+        margin-bottom: 0.5rem;
+    }
+    .analysis-content strong {
+        font-weight: 600;
+    }
+    .analysis-content em {
+        font-style: italic;
+    }
+    .analysis-content blockquote {
+        margin: 1rem 0;
+        padding: 0.5rem 1rem;
+        border-left: 4px solid #dee2e6;
+        color: #6c757d;
+    }
+    .analysis-content code {
+        padding: 0.2rem 0.4rem;
+        font-size: 85%;
+        color: #e83e8c;
+        background-color: rgba(0,0,0,.075);
+        border-radius: 3px;
+    }
+    .analysis-content pre {
+        display: block;
+        padding: 1rem;
+        margin: 1rem 0;
+        font-size: 85%;
+        line-height: 1.45;
+        color: #212529;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    .modal-title {
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Container para toasts -->
+<div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<!-- CSRF Token -->
+{% csrf_token %}
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Filtros -->
+        <div class="col-md-3 p-3">
+            <div class="filters-panel">
+                <h5>Filtros</h5>
+                <div class="mb-3">
+                    <button type="button" class="btn btn-primary w-100 mb-2" id="aplicar-filtros">
+                        Aplicar Filtros
+                    </button>
+                    <button type="button" class="btn btn-secondary w-100" id="limpar-filtros">
+                        Limpar Filtros
+                    </button>
+                </div>
+                <div class="mb-3">
+                    <span id="contador" class="text-muted">0 imóveis encontrados</span>
+                </div>
+                <form id="filtros-form">
+                    <div class="filter-section">
+                        <h5>Estados</h5>
                         <div class="mb-3">
                             <label class="form-label">Estado</label>
                             <input type="text" class="checkbox-search" placeholder="Buscar estados..." id="estado-search">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="select-all-estados" name="select-all-estados">
+                                <label class="form-check-label" for="select-all-estados">
+                                    Todos
+                                </label>
+                            </div>
                             <div class="checkbox-group" id="estados-group">
                                 {% for estado in estados %}
                                     <div class="checkbox-item">
@@ -354,422 +446,747 @@
                                 </div>
                             </div>
                         </div>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Mapa -->
-            <div class="col-md-9 p-0">
-                <div id="map"></div>
+                    </div>
+                </form>
             </div>
         </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>
-        // Função para formatar valores monetários no padrão brasileiro
-        function formatarMoeda(valor) {
-            return new Intl.NumberFormat('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(valor);
-        }
-
-        // Atualizar o valor do desconto quando o slider é movido
-        document.getElementById('desconto_min').addEventListener('input', function() {
-            document.getElementById('desconto_valor').textContent = this.value;
-        });
-
-        // Inicializar o mapa
-        var map = L.map('map').setView([-15.7801, -47.9292], 4);  // Centro do Brasil
         
-        // Adicionar camada do OpenStreetMap
+        <!-- Mapa -->
+        <div class="col-md-9 p-0">
+            <div id="map"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Marked JS -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Variáveis globais
+    let mapInstance = null;
+    let markers = [];
+    let favoritos = new Set();
+
+    // Função para formatar valores monetários
+    function formatarMoeda(valor) {
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(valor);
+    }
+
+    // Atualizar o valor do desconto quando o slider é movido
+    document.getElementById('desconto_min').addEventListener('input', function() {
+        document.getElementById('desconto_valor').textContent = this.value;
+    });
+
+    // Função para inicializar o mapa
+    function initMap() {
+        if (mapInstance) return mapInstance;
+        
+        mapInstance = L.map('map').setView([-15.7801, -47.9292], 4);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        }).addTo(mapInstance);
+        
+        return mapInstance;
+    }
 
-        // Ícones personalizados por tipo de imóvel
-        function createCustomIcon(tipo) {
-            let iconClass = 'fa-home';  // ícone padrão
-            let divClass = '';
+    // Função para limpar marcadores
+    function limparMarcadores() {
+        if (!mapInstance) return;
+        markers.forEach(marker => marker.remove());
+        markers = [];
+    }
+
+    // Função para adicionar marcadores
+    function adicionarMarcadores(propriedades) {
+        if (!mapInstance) return;
+        limparMarcadores();
+        
+        propriedades.forEach(property => {
+            const marker = L.marker([property.latitude, property.longitude], {
+                icon: createCustomIcon(property.tipo_imovel)
+            }).addTo(mapInstance);
             
-            tipo = tipo.toLowerCase();
-            if (tipo.includes('casa')) {
-                iconClass = 'fa-house';
-                divClass = 'casa';
-            } else if (tipo.includes('apartamento')) {
-                iconClass = 'fa-building';
-                divClass = 'apartamento';
-            } else if (tipo.includes('terreno')) {
-                iconClass = 'fa-mountain';
-                divClass = 'terreno';
-            } else if (tipo.includes('comercial') || tipo.includes('sala') || tipo.includes('loja') || tipo.includes('galpão')) {
-                iconClass = 'fa-store';
-                divClass = 'comercial';
-            } else if (tipo.includes('rural') || tipo.includes('fazenda') || tipo.includes('sítio') || tipo.includes('chácara')) {
-                iconClass = 'fa-wheat-awn';
-                divClass = 'rural';
-            }
+            marker.bindPopup(() => createPopupContent(property));
+            markers.push(marker);
+        });
+    }
 
-            return L.divIcon({
-                className: `custom-div-icon ${divClass}`,
-                html: `<i class="fa-solid ${iconClass}"></i>`,
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
+    // Função para obter filtros atuais
+    function obterFiltros() {
+        return {
+            estado: Array.from(document.querySelectorAll('input[name="estado"]:checked')).map(cb => cb.value),
+            cidade: Array.from(document.querySelectorAll('input[name="cidade"]:checked')).map(cb => cb.value),
+            bairro: Array.from(document.querySelectorAll('input[name="bairro"]:checked')).map(cb => cb.value),
+            tipo_imovel: Array.from(document.querySelectorAll('input[name="tipo_imovel"]:checked')).map(cb => cb.value),
+            quartos: Array.from(document.querySelectorAll('input[name="quartos"]:checked')).map(cb => cb.value),
+            desconto_min: document.getElementById('desconto_min').value || 0
+        };
+    }
+
+    // Função para salvar filtros
+    function salvarFiltros() {
+        const filtros = obterFiltros();
+        localStorage.setItem('filtrosMapa', JSON.stringify(filtros));
+        return filtros;
+    }
+
+    // Função para carregar cidades
+    async function carregarCidades() {
+        const estadosSelecionados = Array.from(document.querySelectorAll('input[name="estado"]:checked')).map(cb => cb.value);
+        const cidadesGroup = document.getElementById('cidades-group');
+        
+        if (estadosSelecionados.length === 0) {
+            cidadesGroup.innerHTML = '';
+            return;
         }
 
-        // Função para filtrar checkboxes baseado na busca
-        function filterCheckboxes(searchInput, groupId) {
-            const searchTerm = searchInput.value.toLowerCase();
-            const checkboxes = document.querySelectorAll(`#${groupId} .checkbox-item`);
+        cidadesGroup.innerHTML = '<div class="text-center"><small>Carregando...</small></div>';
+        
+        try {
+            const results = await Promise.all(estadosSelecionados.map(estado =>
+                fetch(`/api/cidades/${estado}/`).then(response => response.json())
+            ));
             
-            checkboxes.forEach(item => {
-                const label = item.querySelector('label').textContent.toLowerCase();
-                if (label.includes(searchTerm)) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        }
+            const todasCidades = [...new Set(results.flat())];
+            cidadesGroup.innerHTML = todasCidades.map(cidade => `
+                <div class="checkbox-item">
+                    <input type="checkbox" name="cidade" value="${cidade}" id="cidade-${cidade}">
+                    <label for="cidade-${cidade}">${cidade}</label>
+                </div>
+            `).join('');
 
-        // Adicionar eventos de busca para cada grupo
-        document.getElementById('estado-search').addEventListener('input', function() {
-            filterCheckboxes(this, 'estados-group');
-        });
-
-        document.getElementById('cidade-search').addEventListener('input', function() {
-            filterCheckboxes(this, 'cidades-group');
-        });
-
-        document.getElementById('bairro-search').addEventListener('input', function() {
-            filterCheckboxes(this, 'bairros-group');
-        });
-
-        document.getElementById('tipo-search').addEventListener('input', function() {
-            filterCheckboxes(this, 'tipos-group');
-        });
-
-        // Função para carregar cidades quando estados forem selecionados
-        function loadCidades() {
-            const estadosSelecionados = Array.from(document.querySelectorAll('input[name="estado"]:checked')).map(cb => cb.value);
-            const cidadesGroup = document.getElementById('cidades-group');
-            cidadesGroup.innerHTML = '<div class="text-center"><small>Carregando...</small></div>';
-            
-            Promise.all(estadosSelecionados.map(estado =>
-                fetch(`/api/cidades/${estado}`).then(response => response.json())
-            )).then(results => {
-                const todasCidades = [...new Set(results.flat())];
-                cidadesGroup.innerHTML = todasCidades.map(cidade => `
-                    <div class="checkbox-item">
-                        <input type="checkbox" name="cidade" value="${cidade}" id="cidade-${cidade}">
-                        <label for="cidade-${cidade}">${cidade}</label>
-                    </div>
-                `).join('');
-                
-                // Reaplica o filtro de busca
-                filterCheckboxes(document.getElementById('cidade-search'), 'cidades-group');
-            });
-        }
-
-        // Função para carregar bairros quando cidades forem selecionadas
-        function loadBairros() {
-            const cidadesSelecionadas = Array.from(document.querySelectorAll('input[name="cidade"]:checked')).map(cb => cb.value);
-            const bairrosGroup = document.getElementById('bairros-group');
-            bairrosGroup.innerHTML = '<div class="text-center"><small>Carregando...</small></div>';
-            
-            Promise.all(cidadesSelecionadas.map(cidade =>
-                fetch(`/api/bairros/${cidade}`).then(response => response.json())
-            )).then(results => {
-                const todosBairros = [...new Set(results.flat())].filter(Boolean);
-                bairrosGroup.innerHTML = todosBairros.map(bairro => `
-                    <div class="checkbox-item">
-                        <input type="checkbox" name="bairro" value="${bairro}" id="bairro-${bairro}">
-                        <label for="bairro-${bairro}">${bairro}</label>
-                    </div>
-                `).join('');
-                
-                // Reaplica o filtro de busca
-                filterCheckboxes(document.getElementById('bairro-search'), 'bairros-group');
-            });
-        }
-
-        // Eventos para carregar cidades e bairros
-        document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
-            checkbox.addEventListener('change', loadCidades);
-        });
-
-        document.getElementById('cidades-group').addEventListener('change', function(e) {
-            if (e.target.type === 'checkbox') {
-                loadBairros();
-            }
-        });
-
-        // Função para carregar os imóveis com múltipla seleção
-        function loadProperties(filters = {}) {
-            // Converter arrays de valores em strings separadas por vírgula
-            const queryParams = new URLSearchParams();
-            for (const [key, value] of Object.entries(filters)) {
-                if (Array.isArray(value)) {
-                    queryParams.append(key, value.join(','));
-                } else {
-                    queryParams.append(key, value);
-                }
-            }
-
-            fetch(`/api/propriedades/?${queryParams}`)
-                .then(response => response.json())
-                .then(data => {
-                    // Limpar marcadores existentes
-                    map.eachLayer((layer) => {
-                        if (layer instanceof L.Marker) {
-                            map.removeLayer(layer);
-                        }
-                    });
-
-                    // Adicionar novos marcadores
-                    data.forEach(property => {
-                        if (property.latitude && property.longitude) {
-                            const tipo = property.tipo_imovel || '';
-                            const marker = L.marker([property.latitude, property.longitude], {
-                                icon: createCustomIcon(tipo)
-                            })
-                                .bindPopup(`
-                                    <div class="property-popup">
-                                        ${property.imagem_url ? 
-                                            `<img src="${property.imagem_url}" alt="Foto do imóvel" class="mb-2">` : 
-                                            ''
-                                        }
-                                        <h6>${property.tipo_imovel}</h6>
-                                        <p>${property.endereco}<br>
-                                        ${property.bairro ? property.bairro + '<br>' : ''}
-                                        ${property.cidade} - ${property.estado}</p>
-                                        <p><strong>Valor de Venda: R$ ${formatarMoeda(property.valor)}</strong></p>
-                                        ${property.valor_avaliacao ? 
-                                            `<p><strong>Valor de Avaliação: R$ ${formatarMoeda(property.valor_avaliacao)}</strong></p>` : 
-                                            ''}
-                                        ${property.desconto ? 
-                                            `<p><strong>Desconto: ${property.desconto}%</strong></p>` : 
-                                            ''}
-                                        <p>${property.quartos} quartos | ${property.area}m²</p>
-                                        <div class="d-flex gap-2">
-                                            <a href="${property.link}" target="_blank" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-search-plus"></i> Ver Detalhes
-                                            </a>
-                                            ${property.matricula_url ? 
-                                                `<button onclick="analisarMatricula('${property.matricula_url}', '${property.codigo}', ${property.analise_matricula ? 'true' : 'false'})" class="btn ${property.analise_matricula ? 'btn-success' : 'btn-info'} btn-sm">
-                                                    <i class="fas ${property.analise_matricula ? 'fa-file-lines' : 'fa-robot'}"></i> 
-                                                    ${property.analise_matricula ? 'Análise de Matrícula' : 'Analisar Matrícula'}
-                                                </button>` : 
-                                                ''
-                                            }
-                                        </div>
-                                        ${property.matricula_url ? 
-                                            `<p class="mt-2">
-                                                <a href="${property.matricula_url}" target="_blank" class="text-decoration-none">
-                                                    <i class="fas fa-external-link-alt"></i> Ver Matrícula Completa
-                                                </a>
-                                            </p>` : 
-                                            ''
-                                        }
-                                    </div>
-                                `);
-                            marker.addTo(map);
-                        }
-                    });
-                });
-        }
-
-        // Função para aplicar filtros
-        function aplicarFiltros() {
-            const filters = {
-                estado: Array.from(document.querySelectorAll('input[name="estado"]:checked')).map(cb => cb.value),
-                cidade: Array.from(document.querySelectorAll('input[name="cidade"]:checked')).map(cb => cb.value),
-                bairro: Array.from(document.querySelectorAll('input[name="bairro"]:checked')).map(cb => cb.value),
-                tipo_imovel: Array.from(document.querySelectorAll('input[name="tipo_imovel"]:checked')).map(cb => cb.value),
-                quartos: Array.from(document.querySelectorAll('input[name="quartos"]:checked')).map(cb => cb.value),
-                valor_max: document.getElementById('valor_max').value,
-                desconto_min: document.getElementById('desconto_min').value
-            };
-            
-            loadProperties(filters);
-        }
-
-        // Evento de submit do formulário
-        document.getElementById('filterForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            aplicarFiltros();
-        });
-
-        // Função para limpar todos os filtros
-        function limparFiltros() {
-            // Limpar checkboxes de estados
-            document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            
-            // Limpar checkboxes de cidades
+            // Adicionar event listener para carregar bairros
             document.querySelectorAll('input[name="cidade"]').forEach(checkbox => {
-                checkbox.checked = false;
+                checkbox.addEventListener('change', carregarBairros);
             });
             
-            // Limpar checkboxes de bairros
-            document.querySelectorAll('input[name="bairro"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            
-            // Limpar checkboxes de tipos de imóvel
-            document.querySelectorAll('input[name="tipo_imovel"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            
-            // Limpar valor máximo
-            document.getElementById('valor_max').value = '';
-            
-            // Limpar desconto mínimo
-            document.getElementById('desconto_min').value = 0;
-            document.getElementById('desconto_valor').textContent = '0';
-            
-            // Limpar checkboxes de quartos
-            document.querySelectorAll('input[name="quartos"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            
-            // Limpar campos de busca
-            document.getElementById('estado-search').value = '';
-            document.getElementById('cidade-search').value = '';
-            document.getElementById('bairro-search').value = '';
-            document.getElementById('tipo-search').value = '';
-            
-            // Centralizar o mapa no Brasil
-            map.setView([-14.235004, -51.92528], 4);
-            
-            // Aplicar os filtros limpos
-            aplicarFiltros();
+            // Restaurar seleções salvas
+            const filtrosSalvos = localStorage.getItem('filtrosMapa');
+            if (filtrosSalvos) {
+                const filtros = JSON.parse(filtrosSalvos);
+                document.querySelectorAll('input[name="cidade"]').forEach(checkbox => {
+                    checkbox.checked = filtros.cidade.includes(checkbox.value);
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao carregar cidades:', error);
+            cidadesGroup.innerHTML = '<div class="text-center text-danger"><small>Erro ao carregar cidades</small></div>';
+        }
+    }
+
+    // Função para carregar bairros
+    async function carregarBairros() {
+        const cidadesSelecionadas = Array.from(document.querySelectorAll('input[name="cidade"]:checked')).map(cb => cb.value);
+        const bairrosGroup = document.getElementById('bairros-group');
+        
+        if (cidadesSelecionadas.length === 0) {
+            bairrosGroup.innerHTML = '';
+            return;
         }
 
-        // Adicionar função para analisar matrícula
-        function analisarMatricula(matriculaUrl, codigo, temAnalise) {
-            // Remover qualquer modal existente
-            const existingModal = document.getElementById('resultModal');
-            if (existingModal) {
-                existingModal.remove();
+        bairrosGroup.innerHTML = '<div class="text-center"><small>Carregando...</small></div>';
+        
+        try {
+            const results = await Promise.all(cidadesSelecionadas.map(cidade =>
+                fetch(`/api/bairros/${cidade}/`).then(response => response.json())
+            ));
+            
+            const todosBairros = [...new Set(results.flat())].filter(Boolean);
+            bairrosGroup.innerHTML = todosBairros.map(bairro => `
+                <div class="checkbox-item">
+                    <input type="checkbox" name="bairro" value="${bairro}" id="bairro-${bairro}">
+                    <label for="bairro-${bairro}">${bairro}</label>
+                </div>
+            `).join('');
+            
+            // Restaurar seleções salvas
+            const filtrosSalvos = localStorage.getItem('filtrosMapa');
+            if (filtrosSalvos) {
+                const filtros = JSON.parse(filtrosSalvos);
+                document.querySelectorAll('input[name="bairro"]').forEach(checkbox => {
+                    checkbox.checked = filtros.bairro.includes(checkbox.value);
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao carregar bairros:', error);
+            bairrosGroup.innerHTML = '<div class="text-center text-danger"><small>Erro ao carregar bairros</small></div>';
+        }
+    }
+
+    // Função para filtrar checkboxes baseado na busca
+    function filterCheckboxes(searchInput, groupId) {
+        const searchTerm = searchInput.value.toLowerCase();
+        const checkboxes = document.querySelectorAll(`#${groupId} .checkbox-item`);
+        
+        checkboxes.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase();
+            if (label.includes(searchTerm)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    // Adicionar eventos de busca para cada grupo
+    const searchInputs = {
+        'estado-search': 'estados-group',
+        'cidade-search': 'cidades-group',
+        'bairro-search': 'bairros-group',
+        'tipo-search': 'tipos-group'
+    };
+
+    Object.entries(searchInputs).forEach(([inputId, groupId]) => {
+        const searchInput = document.getElementById(inputId);
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                filterCheckboxes(this, groupId);
+            });
+        }
+    });
+
+    // Função para aplicar filtros
+    async function aplicarFiltros() {
+        try {
+            const filtros = salvarFiltros();
+            
+            let url = '/api/propriedades/?';
+            if (filtros.estado.length) url += `estado=${filtros.estado.join(',')}&`;
+            if (filtros.cidade.length) url += `cidade=${filtros.cidade.join(',')}&`;
+            if (filtros.bairro.length) url += `bairro=${filtros.bairro.join(',')}&`;
+            if (filtros.tipo_imovel.length) url += `tipo_imovel=${filtros.tipo_imovel.join(',')}&`;
+            if (filtros.quartos.length) url += `quartos=${filtros.quartos.join(',')}&`;
+            url += `desconto_min=${filtros.desconto_min}`;
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const data = await response.json();
+            
+            // Limpar marcadores existentes
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
+            // Adicionar novos marcadores
+            data.forEach(property => {
+                if (property.latitude && property.longitude) {
+                    const marker = L.marker([property.latitude, property.longitude], {
+                        icon: createCustomIcon(property.tipo_imovel)
+                    }).addTo(mapInstance);
+                    
+                    marker.bindPopup(() => createPopupContent(property));
+                    markers.push(marker);
+                }
+            });
+
+            // Atualizar contador
+            document.getElementById('contador').textContent = `${data.length} imóveis encontrados`;
+        } catch (error) {
+            console.error('Erro ao aplicar filtros:', error);
+            showToast('Erro ao carregar propriedades. Tente novamente.', 'error');
+        }
+    }
+
+    // Função para limpar filtros
+    function limparFiltros() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        document.getElementById('desconto_min').value = 0;
+        document.getElementById('desconto_valor').textContent = '0';
+        localStorage.removeItem('filtrosMapa');
+        aplicarFiltros();
+    }
+
+    // Inicialização da página
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            console.log('Iniciando aplicação...');
+            
+            // Inicializar mapa
+            console.log('Inicializando mapa...');
+            mapInstance = L.map('map').setView([-15.7801, -47.9292], 4);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(mapInstance);
+            
+            console.log('Mapa inicializado com sucesso');
+            
+            // Restaurar filtros salvos
+            const filtrosSalvos = localStorage.getItem('filtrosMapa');
+            if (filtrosSalvos) {
+                console.log('Restaurando filtros salvos...');
+                const filtros = JSON.parse(filtrosSalvos);
+                
+                // Aplicar estados
+                document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
+                    checkbox.checked = filtros.estado.includes(checkbox.value);
+                });
+                
+                // Carregar e aplicar cidades e bairros
+                if (filtros.estado.length > 0) {
+                    await carregarCidades();
+                    if (filtros.cidade.length > 0) {
+                        await carregarBairros();
+                    }
+                }
+                
+                // Aplicar outros filtros
+                document.querySelectorAll('input[name="tipo_imovel"]').forEach(checkbox => {
+                    checkbox.checked = filtros.tipo_imovel.includes(checkbox.value);
+                });
+                document.querySelectorAll('input[name="quartos"]').forEach(checkbox => {
+                    checkbox.checked = filtros.quartos.includes(checkbox.value);
+                });
+                
+                // Aplicar desconto mínimo
+                if (filtros.desconto_min) {
+                    document.getElementById('desconto_min').value = filtros.desconto_min;
+                    document.getElementById('desconto_valor').textContent = filtros.desconto_min;
+                }
             }
             
-            if (temAnalise) {
-                // Se já tem análise, buscar do banco
-                fetch(`/api/propriedades/${codigo}/`)
-                    .then(response => response.json())
-                    .then(propriedade => {
-                        // Mostrar resultado
-                        const resultModalHtml = `
-                            <div class="modal fade" id="resultModal" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Análise da Matrícula</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="analysis-content">
-                                                ${marked.parse(propriedade.analise_matricula)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        document.body.insertAdjacentHTML('beforeend', resultModalHtml);
-                        const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
-                        resultModal.show();
-                    })
-                    .catch(error => {
-                        console.error('Erro ao buscar análise:', error);
-                        alert('Erro ao buscar análise da matrícula. Por favor, tente novamente.');
-                    });
-                return;
+            // Aplicar filtros iniciais
+            console.log('Aplicando filtros iniciais...');
+            await aplicarFiltros();
+            
+            // Adicionar event listeners
+            console.log('Configurando event listeners...');
+            
+            // Event listeners para os botões de filtro
+            const btnAplicarFiltros = document.getElementById('aplicar-filtros');
+            if (btnAplicarFiltros) {
+                btnAplicarFiltros.addEventListener('click', () => {
+                    console.log('Botão aplicar filtros clicado');
+                    aplicarFiltros();
+                });
             }
+            
+            const btnLimparFiltros = document.getElementById('limpar-filtros');
+            if (btnLimparFiltros) {
+                btnLimparFiltros.addEventListener('click', () => {
+                    console.log('Botão limpar filtros clicado');
+                    limparFiltros();
+                });
+            }
+            
+            // Event listeners para estados
+            document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    console.log('Estado alterado:', checkbox.value);
+                    carregarCidades();
+                });
+            });
+            
+            // Event listener para o slider de desconto
+            const sliderDesconto = document.getElementById('desconto_min');
+            if (sliderDesconto) {
+                sliderDesconto.addEventListener('input', function() {
+                    const valorDesconto = document.getElementById('desconto_valor');
+                    if (valorDesconto) {
+                        valorDesconto.textContent = this.value;
+                    }
+                });
+            }
+            
+            // Event listener para o formulário
+            const formFiltros = document.getElementById('filtros-form');
+            if (formFiltros) {
+                formFiltros.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    console.log('Formulário submetido');
+                    aplicarFiltros();
+                });
+            }
+            
+            // Inicializar tooltips do Bootstrap
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Carregar favoritos se o usuário estiver logado
+            if (document.querySelector('#userDropdown')) {
+                console.log('Carregando favoritos...');
+                await carregarFavoritos();
+            }
+            
+            console.log('Inicialização concluída com sucesso');
+        } catch (error) {
+            console.error('Erro durante a inicialização:', error);
+            showToast('Erro ao inicializar a aplicação. Por favor, recarregue a página.', 'error');
+        }
+    });
 
-            // Mostrar modal de carregamento
-            const loadingModalHtml = `
-                <div class="modal fade" id="loadingModal" tabindex="-1">
+    // Checkbox "Todos" para estados
+    document.getElementById('select-all-estados').addEventListener('change', function(e) {
+        const estadosCheckboxes = document.querySelectorAll('input[name="estado"]');
+        estadosCheckboxes.forEach(cb => cb.checked = e.target.checked);
+    });
+
+    // Atualizar checkbox "Todos" quando estados individuais são alterados
+    document.querySelectorAll('input[name="estado"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const totalEstados = document.querySelectorAll('input[name="estado"]').length;
+            const estadosSelecionados = document.querySelectorAll('input[name="estado"]:checked').length;
+            document.getElementById('select-all-estados').checked = totalEstados === estadosSelecionados;
+        });
+    });
+
+    // Ícones personalizados por tipo de imóvel
+    function createCustomIcon(tipo) {
+        let iconClass = 'fa-home';  // ícone padrão
+        let divClass = '';
+        
+        tipo = tipo.toLowerCase();
+        if (tipo.includes('casa')) {
+            iconClass = 'fa-house';
+            divClass = 'casa';
+        } else if (tipo.includes('apartamento')) {
+            iconClass = 'fa-building';
+            divClass = 'apartamento';
+        } else if (tipo.includes('terreno')) {
+            iconClass = 'fa-mountain';
+            divClass = 'terreno';
+        } else if (tipo.includes('comercial') || tipo.includes('sala') || tipo.includes('loja') || tipo.includes('galpão')) {
+            iconClass = 'fa-store';
+            divClass = 'comercial';
+        } else if (tipo.includes('rural') || tipo.includes('fazenda') || tipo.includes('sítio') || tipo.includes('chácara')) {
+            iconClass = 'fa-wheat-awn';
+            divClass = 'rural';
+        }
+
+        return L.divIcon({
+            className: `custom-div-icon ${divClass}`,
+            html: `<i class="fa-solid ${iconClass}"></i>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+    }
+
+    // Função para criar o conteúdo do popup
+    function createPopupContent(property) {
+        const isFavorito = favoritos.has(property.codigo);
+        const btnFavoritoClass = isFavorito ? 'btn-danger' : 'btn-outline-danger';
+        const btnFavoritoIcon = isFavorito ? 'fas fa-heart' : 'far fa-heart';
+        
+        // Debug da URL da imagem
+        console.log('URL da imagem original:', property.imagem_url);
+        
+        // Criar URL do proxy
+        const proxyUrl = property.imagem_url ? 
+            `/api/proxy-imagem/?url=${encodeURIComponent(property.imagem_url)}` : 
+            '/static/img/no-image.jpg';
+            
+        console.log('URL do proxy:', proxyUrl);
+        
+        return `
+            <div class="property-popup">
+                ${property.imagem_url ? 
+                    `<img src="${proxyUrl}" alt="Foto do imóvel" class="property-image"
+                         onerror="this.onerror=null; this.src='/static/img/no-image.jpg'; console.log('Erro ao carregar imagem:', this.src, 'Código:', '${property.codigo}');"
+                         onload="console.log('Imagem carregada com sucesso:', this.src, 'Código:', '${property.codigo}');">` : 
+                    ''
+                }
+                <h6>${property.tipo_imovel || 'Imóvel'} - ${property.codigo}</h6>
+                <p>${property.endereco}<br>
+                ${property.bairro ? property.bairro + '<br>' : ''}
+                ${property.cidade} - ${property.estado}</p>
+                <p><strong>Valor de Venda: R$ ${formatarMoeda(property.valor)}</strong></p>
+                ${property.valor_avaliacao ? 
+                    `<p><strong>Valor de Avaliação: R$ ${formatarMoeda(property.valor_avaliacao)}</strong></p>` : 
+                    ''
+                }
+                ${property.desconto ? 
+                    `<p><strong>Desconto: ${property.desconto}%</strong></p>` : 
+                    ''
+                }
+                <p>${property.quartos === null ? '0' : property.quartos} quartos | ${property.area}m²</p>
+                <div class="d-flex gap-2">
+                    <a href="${property.link}" target="_blank" class="btn btn-primary btn-sm">
+                        <i class="fas fa-search-plus"></i> Ver Detalhes
+                    </a>
+                    <button onclick="toggleFavorite('${property.codigo}')" data-codigo="${property.codigo}" 
+                            class="btn ${btnFavoritoClass}" style="width: 50px">
+                        <i class="${btnFavoritoIcon}"></i>
+                    </button>
+                </div>
+                ${property.matricula_url ? 
+                    `<div class="mt-2">
+                        <a href="${property.matricula_url}" target="_blank" class="text-decoration-none">
+                            <i class="fas fa-external-link-alt"></i> Ver Matrícula Completa
+                        </a>
+                    </div>` : 
+                    ''
+                }
+            </div>
+        `;
+    }
+
+    // Função para carregar os favoritos do usuário
+    function carregarFavoritos() {
+        if (document.querySelector('#userDropdown')) {
+            fetch('/api/usuarios/favoritos/')
+            .then(response => response.json())
+            .then(data => {
+                favoritos.clear();
+                if (data.favoritos) {
+                    data.favoritos.forEach(fav => favoritos.add(fav.codigo));
+                }
+                // Atualizar todos os botões de favorito visíveis
+                document.querySelectorAll('button[data-codigo]').forEach(btn => {
+                    atualizarBotaoFavorito(btn, favoritos.has(btn.dataset.codigo));
+                });
+            })
+            .catch(error => {
+                console.error('Erro ao carregar favoritos:', error);
+                showToast('Erro ao carregar favoritos. Tente novamente.', 'error');
+            });
+        }
+    }
+
+    // Função para atualizar o visual do botão de favorito
+    function atualizarBotaoFavorito(btn, isFavorito) {
+        if (isFavorito) {
+            btn.innerHTML = '<i class="fas fa-heart"></i>';
+            btn.classList.add('btn-danger');
+            btn.classList.remove('btn-outline-danger');
+        } else {
+            btn.innerHTML = '<i class="far fa-heart"></i>';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-outline-danger');
+        }
+    }
+
+    // Função para adicionar/remover favorito
+    function toggleFavorite(codigo) {
+        // Verificar se o usuário está logado
+        if (!document.querySelector('#userDropdown')) {
+            // Criar modal de aviso
+            const modalHtml = `
+                <div class="modal fade" id="loginModal" tabindex="-1">
                     <div class="modal-dialog modal-dialog-centered">
                         <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Necessário fazer login</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
                             <div class="modal-body text-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Carregando...</span>
-                                </div>
-                                <p class="mt-2">Analisando matrícula...</p>
+                                <i class="fas fa-user-lock fa-3x mb-3 text-primary"></i>
+                                <p class="mb-3">Para favoritar imóveis é necessário estar logado.</p>
+                                <p>Faça login com sua conta Google para salvar seus imóveis favoritos e receber notificações sobre novas oportunidades.</p>
+                            </div>
+                            <div class="modal-footer justify-content-center">
+                                <a href="/accounts/google/login/?process=login" class="btn btn-primary">
+                                    <i class="fab fa-google me-2"></i> Entrar com Google
+                                </a>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
-            document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
-            const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-            loadingModal.show();
+            
+            // Remover modal anterior se existir
+            const existingModal = document.getElementById('loginModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar e mostrar o novo modal
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('loginModal'));
+            modal.show();
+            return;
+        }
 
-            // Fazer requisição para a API
-            fetch('/api/analisar-matricula/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: JSON.stringify({ 
-                    matricula_url: matriculaUrl,
-                    codigo: codigo
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Remover modal de carregamento
-                loadingModal.hide();
-                document.getElementById('loadingModal').remove();
+        // Se chegou aqui, o usuário está logado
+        fetch(`/api/usuarios/favoritos/${codigo}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const btn = document.querySelector(`button[data-codigo="${codigo}"]`);
+                if (data.action === 'added') {
+                    favoritos.add(codigo);
+                    if (btn) atualizarBotaoFavorito(btn, true);
+                    showToast('Imóvel adicionado aos favoritos!', 'success');
+                } else {
+                    favoritos.delete(codigo);
+                    if (btn) atualizarBotaoFavorito(btn, false);
+                    showToast('Imóvel removido dos favoritos!', 'info');
+                }
+            } else {
+                showToast('Erro ao atualizar favoritos. Tente novamente.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao alternar favorito:', error);
+            showToast('Erro ao atualizar favoritos. Tente novamente.', 'error');
+        });
+    }
 
-                // Mostrar resultado
-                const resultModalHtml = `
-                    <div class="modal fade" id="resultModal" tabindex="-1">
-                        <div class="modal-dialog modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Análise da Matrícula</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="analysis-content">
-                                        ${marked.parse(data.analise)}
+    // Função para mostrar toasts de notificação
+    function showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            document.body.appendChild(container);
+        }
+
+        const toastId = `toast-${Date.now()}`;
+        const toastHtml = `
+            <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto">${type === 'error' ? 'Erro' : type === 'info' ? 'Informação' : 'Sucesso'}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            </div>
+        `;
+
+        document.getElementById('toast-container').insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+        toast.show();
+
+        // Remover o toast depois que for fechado
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+
+    // Adicionar função para analisar matrícula
+    function analisarMatricula(matriculaUrl, codigo, temAnalise) {
+        // Remover qualquer modal existente
+        const existingModal = document.getElementById('resultModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        if (temAnalise) {
+            // Se já tem análise, buscar do banco
+            fetch(`/api/propriedades/${codigo}/`)
+                .then(response => response.json())
+                .then(propriedade => {
+                    // Mostrar resultado
+                    const resultModalHtml = `
+                        <div class="modal fade" id="resultModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Análise da Matrícula</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="analysis-content">
+                                            ${marked.parse(propriedade.analise_matricula)}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', resultModalHtml);
-                const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
-                resultModal.show();
-
-                // Recarregar os imóveis para atualizar o botão
-                aplicarFiltros();
-            })
-            .catch(error => {
-                // Remover modal de carregamento
-                loadingModal.hide();
-                document.getElementById('loadingModal').remove();
-
-                // Mostrar erro
-                alert('Erro ao analisar matrícula. Por favor, tente novamente.');
-                console.error('Erro:', error);
-            });
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+                    const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+                    resultModal.show();
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar análise:', error);
+                    alert('Erro ao buscar análise da matrícula. Por favor, tente novamente.');
+                });
+            return;
         }
 
-        // Carregar imóveis iniciais
-        loadProperties();
-    </script>
-</body>
-</html> 
+        // Mostrar modal de carregamento
+        const loadingModalHtml = `
+            <div class="modal fade" id="loadingModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-body text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2">Analisando matrícula...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+
+        // Fazer requisição para a API
+        fetch('/api/analisar-matricula/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ 
+                matricula_url: matriculaUrl,
+                codigo: codigo
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remover modal de carregamento
+            loadingModal.hide();
+            document.getElementById('loadingModal').remove();
+
+            // Mostrar resultado
+            const resultModalHtml = `
+                <div class="modal fade" id="resultModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Análise da Matrícula</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="analysis-content">
+                                    ${marked.parse(data.analise)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+            const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+            resultModal.show();
+
+            // Recarregar os imóveis para atualizar o botão
+            aplicarFiltros();
+        })
+        .catch(error => {
+            // Remover modal de carregamento
+            loadingModal.hide();
+            document.getElementById('loadingModal').remove();
+
+            // Mostrar erro
+            alert('Erro ao analisar matrícula. Por favor, tente novamente.');
+            console.error('Erro:', error);
+        });
+    }
+</script>
+{% endblock %} 
