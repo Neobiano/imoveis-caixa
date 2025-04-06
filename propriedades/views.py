@@ -10,16 +10,9 @@ from django.conf import settings
 import os
 import uuid
 from datetime import datetime
-import urllib3
-from urllib3.exceptions import InsecureRequestWarning
 import time
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
-from urllib3.util.retry import Retry
-from urllib3.adapters import HTTPAdapter
-
-# Desabilitar avisos de certificado inválido
-urllib3.disable_warnings(InsecureRequestWarning)
 
 # Create your views here.
 
@@ -237,48 +230,63 @@ def proxy_imagem(request):
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Referer': 'https://venda-imoveis.caixa.gov.br/',
+            'Origin': 'https://venda-imoveis.caixa.gov.br',
+            'Host': 'venda-imoveis.caixa.gov.br',
             'Sec-Fetch-Dest': 'image',
             'Sec-Fetch-Mode': 'no-cors',
             'Sec-Fetch-Site': 'same-origin',
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache',
         }
-        
-        # Configuração da sessão com retry
-        session = requests.Session()
-        retries = Retry(total=3,
-                       backoff_factor=0.5,
-                       status_forcelist=[403, 429, 500, 502, 503, 504])
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-        
-        # Fazer requisição com a sessão configurada
-        response = session.get(
-            url,
-            headers=headers,
-            verify=False,  # Ignorar verificação SSL
-            stream=True,
-            timeout=15
-        )
-        
-        # Se a imagem não for encontrada, retornar a imagem padrão
-        if response.status_code == 404:
-            with open('propriedades/static/img/no-image.jpg', 'rb') as f:
-                return HttpResponse(f.read(), content_type='image/jpeg')
-        
-        response.raise_for_status()
-        
-        # Retornar a imagem com cache
-        response_headers = {
-            'Content-Type': response.headers.get('content-type', 'image/jpeg'),
-            'Cache-Control': 'public, max-age=31536000',  # Cache por 1 ano
-        }
-        
-        return HttpResponse(
-            response.content,
-            content_type=response.headers.get('content-type', 'image/jpeg'),
-            headers=response_headers
-        )
-        
+
+        # Primeira tentativa
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                verify=False,
+                stream=True,
+                timeout=15
+            )
+            response.raise_for_status()
+            
+            # Se conseguiu obter a imagem, retornar com cache
+            response_headers = {
+                'Cache-Control': 'public, max-age=31536000',
+            }
+            return HttpResponse(
+                response.content,
+                content_type=response.headers.get('content-type', 'image/jpeg'),
+                headers=response_headers
+            )
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao buscar imagem: {e}")
+            # Em caso de erro, tentar uma segunda vez com delay
+            time.sleep(2)
+            try:
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    verify=False,
+                    stream=True,
+                    timeout=15
+                )
+                response.raise_for_status()
+                
+                response_headers = {
+                    'Cache-Control': 'public, max-age=31536000',
+                }
+                return HttpResponse(
+                    response.content,
+                    content_type=response.headers.get('content-type', 'image/jpeg'),
+                    headers=response_headers
+                )
+            except:
+                # Se falhar novamente, retornar a imagem padrão
+                with open('propriedades/static/img/no-image.jpg', 'rb') as f:
+                    return HttpResponse(f.read(), content_type='image/jpeg')
+                    
     except Exception as e:
         print(f"Erro ao buscar imagem: {e}")
         # Em caso de erro, retornar a imagem padrão
